@@ -1,0 +1,5 @@
+{
+  "name": "AI Outfit Studio",
+  "description": "An AI-powered fashion tool to clean up clothing images, generate model try-on shots, and create detail views.",
+  "requestFramePermissions": []
+}
