@@ -30,17 +30,27 @@ export default function App() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedImagePreview, setSelectedImagePreview] = useState<string | null>(null);
   
-  const [selectedModelFile, setSelectedModelFile] = useState<File | null>(null);
-  const [selectedModelPreview, setSelectedModelPreview] = useState<string | null>(null);
+  const [selectedBackFile, setSelectedBackFile] = useState<File | null>(null);
+  const [selectedBackPreview, setSelectedBackPreview] = useState<string | null>(null);
   
-  const [cleanUpState, setCleanUpState] = useState<GenerationState>({ loading: false, image: null });
+  const [selectedBackgroundFile, setSelectedBackgroundFile] = useState<File | null>(null);
+  const [selectedBackgroundPreview, setSelectedBackgroundPreview] = useState<string | null>(null);
+  
+  const [cleanUpFrontState, setCleanUpFrontState] = useState<GenerationState>({ loading: false, image: null });
+  const [cleanUpBackState, setCleanUpBackState] = useState<GenerationState>({ loading: false, image: null });
   const [modelFrontState, setModelFrontState] = useState<GenerationState>({ loading: false, image: null });
   const [modelSideState, setModelSideState] = useState<GenerationState>({ loading: false, image: null });
+  const [modelFullBodyState, setModelFullBodyState] = useState<GenerationState>({ loading: false, image: null });
+  const [modelCoordinationState, setModelCoordinationState] = useState<GenerationState>({ loading: false, image: null });
   
   // 3 Detail Shots
   const [detailTextureState, setDetailTextureState] = useState<GenerationState>({ loading: false, image: null });
   const [detailStitchState, setDetailStitchState] = useState<GenerationState>({ loading: false, image: null });
   const [detailDesignState, setDetailDesignState] = useState<GenerationState>({ loading: false, image: null });
+  
+  const [enableDetailShots, setEnableDetailShots] = useState(false);
+  const [modelGender, setModelGender] = useState<'female' | 'male' | 'unisex'>('female');
+  const [targetColor, setTargetColor] = useState<string>('');
 
   useEffect(() => {
     // Check for session authorization
@@ -98,19 +108,32 @@ export default function App() {
   };
 
   const handleSaveManualKey = () => {
-    if (tempApiKey.trim()) {
-      setManualApiKey(tempApiKey.trim());
-      localStorage.setItem('gemini_manual_key', tempApiKey.trim());
+    const key = tempApiKey.trim();
+    setManualApiKey(key);
+    if (key) {
+      localStorage.setItem('gemini_manual_key', key);
       setHasApiKey(true);
-      setShowApiKeyModal(false);
+    } else {
+      localStorage.removeItem('gemini_manual_key');
+      setHasApiKey(false);
     }
+    setShowApiKeyModal(false);
   };
 
   const getAIClient = () => {
     if (manualApiKey) {
       return new GoogleGenAI({ apiKey: manualApiKey });
     }
-    return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    
+    // Check if we have an injected key (AI Studio environment or Vercel env var)
+    const envKey = typeof process !== 'undefined' && process.env ? process.env.GEMINI_API_KEY : undefined;
+    if (envKey) {
+      return new GoogleGenAI({ apiKey: envKey });
+    }
+    
+    // If no key is available, prompt the user
+    setShowApiKeyModal(true);
+    throw new Error("API key is missing. Please enter your Gemini API key in Settings.");
   };
 
   const handleImageSelect = (file: File) => {
@@ -122,43 +145,69 @@ export default function App() {
     reader.readAsDataURL(file);
     
     // Reset states
-    setCleanUpState({ loading: false, image: null });
+    setCleanUpFrontState({ loading: false, image: null });
+    setCleanUpBackState({ loading: false, image: null });
     setModelFrontState({ loading: false, image: null });
     setModelSideState({ loading: false, image: null });
+    setModelFullBodyState({ loading: false, image: null });
+    setModelCoordinationState({ loading: false, image: null });
     setDetailTextureState({ loading: false, image: null });
     setDetailStitchState({ loading: false, image: null });
     setDetailDesignState({ loading: false, image: null });
   };
 
-  const handleModelSelect = (file: File) => {
-    setSelectedModelFile(file);
+  const handleBackSelect = (file: File) => {
+    setSelectedBackFile(file);
     const reader = new FileReader();
     reader.onload = (e) => {
-      setSelectedModelPreview(e.target?.result as string);
+      setSelectedBackPreview(e.target?.result as string);
     };
     reader.readAsDataURL(file);
     
-    // Reset model states
-    setModelFrontState({ loading: false, image: null });
-    setModelSideState({ loading: false, image: null });
+    // Reset back related states
+    setCleanUpBackState({ loading: false, image: null });
+  };
+
+  const handleBackgroundSelect = (file: File) => {
+    setSelectedBackgroundFile(file);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setSelectedBackgroundPreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+    
+    // Reset background related states
+    setModelFullBodyState({ loading: false, image: null });
   };
 
   const handleClear = () => {
     setSelectedFile(null);
     setSelectedImagePreview(null);
-    setCleanUpState({ loading: false, image: null });
+    setSelectedBackFile(null);
+    setSelectedBackPreview(null);
+    setSelectedBackgroundFile(null);
+    setSelectedBackgroundPreview(null);
+    setCleanUpFrontState({ loading: false, image: null });
+    setCleanUpBackState({ loading: false, image: null });
     setModelFrontState({ loading: false, image: null });
     setModelSideState({ loading: false, image: null });
+    setModelFullBodyState({ loading: false, image: null });
+    setModelCoordinationState({ loading: false, image: null });
     setDetailTextureState({ loading: false, image: null });
     setDetailStitchState({ loading: false, image: null });
     setDetailDesignState({ loading: false, image: null });
   };
 
-  const handleModelClear = () => {
-    setSelectedModelFile(null);
-    setSelectedModelPreview(null);
-    setModelFrontState({ loading: false, image: null });
-    setModelSideState({ loading: false, image: null });
+  const handleBackClear = () => {
+    setSelectedBackFile(null);
+    setSelectedBackPreview(null);
+    setCleanUpBackState({ loading: false, image: null });
+  };
+
+  const handleBackgroundClear = () => {
+    setSelectedBackgroundFile(null);
+    setSelectedBackgroundPreview(null);
+    setModelFullBodyState({ loading: false, image: null });
   };
 
   const fileToGenerativePart = async (file: File) => {
@@ -179,28 +228,83 @@ export default function App() {
     });
   };
 
+  const getCleanUpSourcePart = async () => {
+    if (cleanUpFrontState.image) {
+      return {
+        inlineData: {
+          data: cleanUpFrontState.image.split(',')[1],
+          mimeType: 'image/png'
+        }
+      };
+    } else if (selectedFile) {
+      return await fileToGenerativePart(selectedFile);
+    }
+    return undefined;
+  };
+
   const generateAll = async () => {
     if (!selectedFile) return;
 
-    generateCleanUp();
-    generateModelFrontShot();
-    generateModelSideShot();
-    generateDetailShots();
+    // Start detail shots immediately if enabled
+    if (enableDetailShots) {
+      generateDetailShots();
+    }
+
+    // Generate clean up front and back
+    const cleanUpFrontBase64 = await generateCleanUpFront();
+    generateCleanUpBack(cleanUpFrontBase64);
+    
+    let sourcePart;
+    if (cleanUpFrontBase64) {
+      sourcePart = {
+        inlineData: {
+          data: cleanUpFrontBase64,
+          mimeType: 'image/png'
+        }
+      };
+    } else {
+      sourcePart = await fileToGenerativePart(selectedFile);
+    }
+
+    // Pass the cleaned-up image (or original fallback) to model shots
+    generateModelFrontShot(sourcePart);
+    generateModelSideShot(sourcePart);
+    
+    // Generate coordination first, then use it for full body
+    const coordinationBase64 = await generateCoordination(sourcePart);
+    let coordinationPart;
+    if (coordinationBase64) {
+      coordinationPart = {
+        inlineData: {
+          data: coordinationBase64,
+          mimeType: 'image/png'
+        }
+      };
+    }
+    generateModelFullBody(sourcePart, coordinationPart);
   };
 
-  const generateCleanUp = async () => {
-    if (!selectedFile) return;
-    setCleanUpState({ loading: true, image: null });
+  const generateCleanUpFront = async () => {
+    if (!selectedFile) return null;
+    setCleanUpFrontState({ loading: true, image: null });
 
     try {
       const ai = getAIClient();
       const imagePart = await fileToGenerativePart(selectedFile);
+      
+      let prompt = "Professional product photography of this exact clothing item. Front view. Flat lay or invisible mannequin. Completely remove all wrinkles and creases. Smooth texture, perfect studio lighting, clean white or neutral grey background. High resolution, 4k. ";
+      if (targetColor) {
+        prompt += `Change the color of the clothing to exactly match this hex color code: ${targetColor}. Ensure the fabric texture and shading remain realistic while adopting this new color. `;
+      } else {
+        prompt += "Keep the original design and color exactly as is, just make it look pristine and brand new.";
+      }
+
       const response = await ai.models.generateContent({
         model: 'gemini-3.1-flash-image-preview',
         contents: {
           parts: [
             imagePart,
-            { text: "Professional product photography of this exact clothing item. Flat lay or invisible mannequin. Completely remove all wrinkles and creases. Smooth texture, perfect studio lighting, clean white or neutral grey background. High resolution, 4k. Keep the original design and color exactly as is, just make it look pristine and brand new." }
+            { text: prompt }
           ]
         },
         config: {
@@ -213,32 +317,99 @@ export default function App() {
 
       const generatedImage = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
       if (generatedImage) {
-        setCleanUpState({ loading: false, image: `data:image/png;base64,${generatedImage}` });
+        setCleanUpFrontState({ loading: false, image: `data:image/png;base64,${generatedImage}` });
+        return generatedImage;
       } else {
-        setCleanUpState({ loading: false, image: null });
+        setCleanUpFrontState({ loading: false, image: null });
+        return null;
       }
     } catch (error) {
-      console.error("Error generating clean up:", error);
-      setCleanUpState({ loading: false, image: null });
+      console.error("Error generating clean up front:", error);
+      setCleanUpFrontState({ loading: false, image: null });
+      return null;
     }
   };
 
-  const generateModelFrontShot = async () => {
-    if (!selectedFile) return;
+  const generateCleanUpBack = async (frontBase64?: string | null) => {
+    if (!selectedFile && !selectedBackFile) return null;
+    setCleanUpBackState({ loading: true, image: null });
+
+    try {
+      const ai = getAIClient();
+      
+      const sourceFile = selectedBackFile || selectedFile!;
+      const imagePart = await fileToGenerativePart(sourceFile);
+      const parts: any[] = [imagePart];
+      
+      let prompt = "Professional product photography of this exact clothing item. Back view. Flat lay or invisible mannequin. Completely remove all wrinkles and creases. Smooth texture, perfect studio lighting, clean white or neutral grey background. High resolution, 4k. ";
+      if (targetColor) {
+        prompt += `Change the color of the clothing to exactly match this hex color code: ${targetColor}. Ensure the fabric texture and shading remain realistic while adopting this new color. `;
+      } else {
+        prompt += "Keep the original design and color exactly as is, just make it look pristine and brand new.";
+      }
+
+      const referenceFront = frontBase64 || (cleanUpFrontState.image ? cleanUpFrontState.image.split(',')[1] : null);
+
+      if (referenceFront) {
+        parts.push({
+          inlineData: {
+            data: referenceFront,
+            mimeType: 'image/png'
+          }
+        });
+        
+        if (selectedBackFile) {
+          prompt = "Image 1 is the original clothing (back view). Image 2 is the cleaned-up FRONT view of the SAME clothing. Generate the cleaned-up BACK view of this clothing based on Image 1. It is ABSOLUTELY CRITICAL that the color, fabric texture, and lighting of the back view EXACTLY MATCH Image 2. Flat lay or invisible mannequin. Completely remove all wrinkles and creases. Clean white or neutral grey background. High resolution, 4k.";
+        } else {
+          prompt = "Image 1 is the original clothing (front view). Image 2 is the cleaned-up FRONT view of the SAME clothing. Generate the cleaned-up BACK view of this clothing. It is ABSOLUTELY CRITICAL that the color, fabric texture, and lighting of the back view EXACTLY MATCH Image 2. Flat lay or invisible mannequin. Completely remove all wrinkles and creases. Clean white or neutral grey background. High resolution, 4k.";
+        }
+        
+        if (targetColor) {
+           prompt += ` The clothing color MUST be changed to the hex color code: ${targetColor}, matching Image 2.`;
+        }
+      }
+
+      parts.push({ text: prompt });
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-image-preview',
+        contents: { parts },
+        config: {
+          imageConfig: {
+            aspectRatio: "1:1",
+            imageSize: "1K"
+          }
+        }
+      });
+
+      const generatedImage = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+      if (generatedImage) {
+        setCleanUpBackState({ loading: false, image: `data:image/png;base64,${generatedImage}` });
+        return generatedImage;
+      } else {
+        setCleanUpBackState({ loading: false, image: null });
+        return null;
+      }
+    } catch (error) {
+      console.error("Error generating clean up back:", error);
+      setCleanUpBackState({ loading: false, image: null });
+      return null;
+    }
+  };
+
+  const generateModelFrontShot = async (sourcePartOverride?: any) => {
+    if (!selectedFile && !sourcePartOverride) return;
     setModelFrontState({ loading: true, image: null });
 
     try {
       const ai = getAIClient();
-      const clothingPart = await fileToGenerativePart(selectedFile);
+      const clothingPart = sourcePartOverride || await fileToGenerativePart(selectedFile!);
       const parts: any[] = [clothingPart];
       
-      let prompt = "A professional Korean fashion model wearing this exact clothing item. Front view. Full body shot. High fashion editorial style photography. Neutral, elegant background. The model should be posing naturally. Ensure the clothing item looks realistic and fits well. Cinematic lighting.";
+      const genderText = modelGender === 'unisex' ? '' : modelGender.toUpperCase();
+      let colorInstruction = targetColor ? ` CRITICAL: Change the color of the clothing to exactly match this hex color code: ${targetColor}. DO NOT keep the original color. Ensure the fabric texture and shading remain realistic while adopting this new color.` : ` (DO NOT change the original color of the clothing or styling to match the background, keep the clothing's original color and use diverse colors for styling).`;
 
-      if (selectedModelFile) {
-        const modelPart = await fileToGenerativePart(selectedModelFile);
-        parts.push(modelPart);
-        prompt = "Image 1 is the clothing item. Image 2 is the target person. Generate a highly realistic, professional fashion editorial photo of the person in Image 2 wearing the exact clothing item from Image 1. Front view. Full body shot. Cinematic lighting. Ensure the clothing fits naturally and the person's identity and facial features are preserved.";
-      }
+      let prompt = `A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing this exact clothing item. The clothing MUST be worn by a person, NOT displayed flat. Front view. Cropped shot focusing heavily on the clothing item (zoomed in on the torso/upper body if it is a top). The model's face must NOT be visible (cropped below the face/eyes). Trendy Seoul street style or modern minimalist cafe look. Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction} Natural posing. Cinematic lighting.`;
       
       parts.push({ text: prompt });
 
@@ -265,22 +436,19 @@ export default function App() {
     }
   };
 
-  const generateModelSideShot = async () => {
-    if (!selectedFile) return;
+  const generateModelSideShot = async (sourcePartOverride?: any) => {
+    if (!selectedFile && !sourcePartOverride) return;
     setModelSideState({ loading: true, image: null });
 
     try {
       const ai = getAIClient();
-      const clothingPart = await fileToGenerativePart(selectedFile);
+      const clothingPart = sourcePartOverride || await fileToGenerativePart(selectedFile!);
       const parts: any[] = [clothingPart];
       
-      let prompt = "A professional Korean fashion model wearing this exact clothing item. Side profile view. Full body or 3/4 shot. High fashion editorial style photography. Neutral, elegant background. The model should be posing naturally. Ensure the clothing item looks realistic and fits well. Cinematic lighting.";
+      const genderText = modelGender === 'unisex' ? '' : modelGender.toUpperCase();
+      let colorInstruction = targetColor ? ` CRITICAL: Change the color of the clothing to exactly match this hex color code: ${targetColor}. DO NOT keep the original color. Ensure the fabric texture and shading remain realistic while adopting this new color.` : ` (DO NOT change the original color of the clothing or styling to match the background, keep the clothing's original color and use diverse colors for styling).`;
 
-      if (selectedModelFile) {
-        const modelPart = await fileToGenerativePart(selectedModelFile);
-        parts.push(modelPart);
-        prompt = "Image 1 is the clothing item. Image 2 is the target person. Generate a highly realistic, professional fashion editorial photo of the person in Image 2 wearing the exact clothing item from Image 1. Side profile view. Full body or 3/4 shot. Cinematic lighting. Ensure the clothing fits naturally and the person's identity and facial features are preserved.";
-      }
+      let prompt = `A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing this exact clothing item. The clothing MUST be worn by a person, NOT displayed flat. Side profile view. Cropped shot focusing heavily on the clothing item (zoomed in on the torso/upper body if it is a top). The model's face must NOT be visible (cropped below the face/eyes). Trendy Seoul street style or modern minimalist cafe look. Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction} Natural posing. Cinematic lighting.`;
       
       parts.push({ text: prompt });
 
@@ -307,29 +475,151 @@ export default function App() {
     }
   };
 
+  const generateModelFullBody = async (sourcePartOverride?: any, coordinationPartOverride?: any) => {
+    if (!selectedFile && !sourcePartOverride) return;
+    setModelFullBodyState({ loading: true, image: null });
+
+    try {
+      const ai = getAIClient();
+      const clothingPart = sourcePartOverride || await fileToGenerativePart(selectedFile!);
+      const parts: any[] = [clothingPart];
+      
+      let coordPart = coordinationPartOverride;
+      if (!coordPart && modelCoordinationState.image) {
+        coordPart = {
+          inlineData: {
+            data: modelCoordinationState.image.split(',')[1],
+            mimeType: 'image/png'
+          }
+        };
+      }
+
+      if (coordPart) {
+        parts.push(coordPart);
+      }
+      
+      const genderText = modelGender === 'unisex' ? '' : modelGender.toUpperCase();
+      let colorInstruction = targetColor ? ` CRITICAL: Change the color of the clothing to exactly match this hex color code: ${targetColor}. DO NOT keep the original color. Ensure the fabric texture and shading remain realistic while adopting this new color.` : ` (DO NOT change the original color of the clothing or styling to match the background, keep the clothing's original color and use diverse colors for styling).`;
+
+      let prompt = `A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing this exact clothing item. The clothing MUST be worn by a person, NOT displayed flat. Full body shot cropped from the chin down (face must NOT be visible). The model is wearing a highly trendy, youthful Seoul street style or modern minimalist cafe look coordination (e.g., wide-fit trousers, trendy sneakers or boots). Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction} Natural posing. Cinematic lighting.`;
+
+      if (coordPart) {
+        prompt = `Image 1 is the main clothing item. Image 2 is the recommended coordination outfit. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1, styled EXACTLY with the matching items (bottoms, shoes, accessories) shown in Image 2. The clothing MUST be worn by a person, NOT displayed flat. Full body shot cropped from the chin down (face must NOT be visible). Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction} Natural posing. Cinematic lighting.`;
+      }
+
+      if (selectedBackgroundFile) {
+        const bgPart = await fileToGenerativePart(selectedBackgroundFile);
+        parts.push(bgPart);
+        
+        if (coordPart) {
+          prompt = `Image 1 is the main clothing item. Image 2 is the recommended coordination outfit. Image 3 is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1, styled EXACTLY with the matching items (bottoms, shoes, accessories) shown in Image 2. The model MUST be placed naturally into the exact environment shown in Image 3. Full body shot cropped from the chin down (face must NOT be visible). Strictly avoid outdated or middle-aged styling.${colorInstruction} Cinematic lighting matching the background environment. Ensure the clothing fits naturally and the composite looks photorealistic.`;
+        } else {
+          prompt = `Image 1 is the clothing item. Image 2 is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1. The model MUST be placed naturally into the exact environment shown in Image 2. Full body shot cropped from the chin down (face must NOT be visible). The model is wearing a highly trendy, youthful Seoul street style or modern minimalist cafe look coordination. Strictly avoid outdated or middle-aged styling.${colorInstruction} Cinematic lighting matching the background environment. Ensure the clothing fits naturally and the composite looks photorealistic.`;
+        }
+      }
+      
+      parts.push({ text: prompt });
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-image-preview',
+        contents: { parts },
+        config: {
+          imageConfig: {
+            aspectRatio: "3:4",
+            imageSize: "1K"
+          }
+        }
+      });
+
+      const generatedImage = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+      if (generatedImage) {
+        setModelFullBodyState({ loading: false, image: `data:image/png;base64,${generatedImage}` });
+      } else {
+        setModelFullBodyState({ loading: false, image: null });
+      }
+    } catch (error) {
+      console.error("Error generating model full body shot:", error);
+      setModelFullBodyState({ loading: false, image: null });
+    }
+  };
+
+  const generateCoordination = async (sourcePartOverride?: any) => {
+    if (!selectedFile && !sourcePartOverride) return null;
+    setModelCoordinationState({ loading: true, image: null });
+
+    try {
+      const ai = getAIClient();
+      const clothingPart = sourcePartOverride || await fileToGenerativePart(selectedFile!);
+      const parts: any[] = [clothingPart];
+      
+      let colorInstruction = targetColor ? ` CRITICAL: Change the color of the main clothing item to exactly match this hex color code: ${targetColor}. DO NOT keep the original color. Ensure the fabric texture and shading remain realistic while adopting this new color.` : ` (DO NOT change the original color of the clothing or styling to match the background, keep the clothing's original color and use diverse colors for styling)`;
+
+      const prompt = `A highly stylish fashion coordination flat lay (outfit grid) featuring this exact clothing item as the centerpiece. Pair it with trendy matching bottoms (like wide-fit slacks or trendy denim), stylish sneakers or modern shoes, and youthful accessories to create a sophisticated, modern 20-something Korean fashion look (Seoul street style or minimalist cafe aesthetic). Strictly avoid outdated or middle-aged styling. High fashion editorial style, luxurious cream background${colorInstruction}, perfect lighting, neat arrangement.`;
+      
+      parts.push({ text: prompt });
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-image-preview',
+        contents: { parts },
+        config: {
+          imageConfig: {
+            aspectRatio: "1:1",
+            imageSize: "1K"
+          }
+        }
+      });
+
+      const generatedImage = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+      if (generatedImage) {
+        setModelCoordinationState({ loading: false, image: `data:image/png;base64,${generatedImage}` });
+        return generatedImage;
+      } else {
+        setModelCoordinationState({ loading: false, image: null });
+        return null;
+      }
+    } catch (error) {
+      console.error("Error generating coordination shot:", error);
+      setModelCoordinationState({ loading: false, image: null });
+      return null;
+    }
+  };
+
+  const generateDetailTexture = async () => {
+    if (!selectedFile) return;
+    let colorInstruction = targetColor ? ` CRITICAL: Change the color of the fabric to exactly match this hex color code: ${targetColor}. DO NOT keep the original color.` : ` Use the exact same colors and pattern as the provided reference image.`;
+    setDetailTextureState({ loading: true, image: null });
+    await generateSingleDetail(
+      `Macro photography of the fabric texture. Extreme close-up showing the weave and material.${colorInstruction}`,
+      setDetailTextureState
+    );
+  };
+
+  const generateDetailStitch = async () => {
+    if (!selectedFile) return;
+    let colorInstruction = targetColor ? ` CRITICAL: Change the color of the fabric to exactly match this hex color code: ${targetColor}. DO NOT keep the original color.` : ` Use the exact same colors and pattern as the provided reference image.`;
+    setDetailStitchState({ loading: true, image: null });
+    await generateSingleDetail(
+      `Macro photography of a seam or stitching. Extreme close-up.${colorInstruction} Single image, no collages.`,
+      setDetailStitchState
+    );
+  };
+
+  const generateDetailDesign = async () => {
+    if (!selectedFile) return;
+    let colorInstruction = targetColor ? ` CRITICAL: Change the color of the fabric to exactly match this hex color code: ${targetColor}. DO NOT keep the original color.` : ` Use the exact same colors and pattern as the provided reference image.`;
+    setDetailDesignState({ loading: true, image: null });
+    await generateSingleDetail(
+      `Macro photography of a specific design detail (like a button, edge, or fold). Extreme close-up.${colorInstruction}`,
+      setDetailDesignState
+    );
+  };
+
   const generateDetailShots = async () => {
     if (!selectedFile) return;
     
-    // 1. Texture
-    setDetailTextureState({ loading: true, image: null });
-    generateSingleDetail(
-      "Extreme close-up macro photography of the fabric texture. Focus on the weave and material quality. Shallow depth of field.",
-      setDetailTextureState
-    );
-
-    // 2. Stitching
-    setDetailStitchState({ loading: true, image: null });
-    generateSingleDetail(
-      "Macro shot focusing on the stitching details, seams, and construction quality of the clothing. High contrast, sharp details.",
-      setDetailStitchState
-    );
-
-    // 3. Design Elements
-    setDetailDesignState({ loading: true, image: null });
-    generateSingleDetail(
-      "Close-up detail shot of unique design elements, buttons, zippers, or patterns. Artistic composition.",
-      setDetailDesignState
-    );
+    generateDetailTexture();
+    generateDetailStitch();
+    generateDetailDesign();
   };
 
   const generateSingleDetail = async (prompt: string, setState: React.Dispatch<React.SetStateAction<GenerationState>>) => {
@@ -513,92 +803,202 @@ export default function App() {
           {/* Upload Section */}
           <section className="mb-20">
             <div className="flex flex-col items-center">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-6xl">
                 <ImageUpload 
-                  title="Upload Clothing Item"
-                  subtitle="Required: Drag and drop or click to browse"
+                  title="Front Item"
+                  subtitle="Required: Upload front view"
                   onImageSelect={handleImageSelect} 
                   selectedImage={selectedImagePreview}
                   onClear={handleClear}
                 />
                 <ImageUpload 
-                  title="Upload Custom Model"
-                  subtitle="Optional: For custom try-on shots"
-                  onImageSelect={handleModelSelect} 
-                  selectedImage={selectedModelPreview}
-                  onClear={handleModelClear}
+                  title="Back Item"
+                  subtitle="Optional: Upload back view"
+                  onImageSelect={handleBackSelect} 
+                  selectedImage={selectedBackPreview}
+                  onClear={handleBackClear}
+                />
+                <ImageUpload 
+                  title="Background"
+                  subtitle="Optional: For full body shot"
+                  onImageSelect={handleBackgroundSelect} 
+                  selectedImage={selectedBackgroundPreview}
+                  onClear={handleBackgroundClear}
                 />
               </div>
+
+              <div className="mt-8 flex flex-col md:flex-row justify-center items-center gap-6 w-full max-w-5xl flex-wrap">
+                <div className="flex items-center gap-4 p-5 bg-[#1a1a1a] border border-white/10 rounded-2xl w-full md:w-auto shadow-lg">
+                  <div className="flex flex-col mr-4">
+                    <span className="text-base font-medium text-white">Model Gender</span>
+                    <span className="text-xs text-white/50">Select preferred model gender</span>
+                  </div>
+                  <div className="flex bg-white/5 rounded-lg p-1">
+                    {(['female', 'male', 'unisex'] as const).map((gender) => (
+                      <button
+                        key={gender}
+                        onClick={() => setModelGender(gender)}
+                        className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-all ${
+                          modelGender === gender 
+                            ? 'bg-white text-black shadow-sm' 
+                            : 'text-white/60 hover:text-white hover:bg-white/10'
+                        }`}
+                      >
+                        {gender}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 p-5 bg-[#1a1a1a] border border-white/10 rounded-2xl w-full md:w-auto shadow-lg">
+                  <div className="flex flex-col mr-4">
+                    <span className="text-base font-medium text-white">Target Color</span>
+                    <span className="text-xs text-white/50">Optional: Change clothing color</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input 
+                      type="color" 
+                      value={targetColor || '#ffffff'} 
+                      onChange={(e) => setTargetColor(e.target.value)}
+                      className="w-10 h-10 rounded cursor-pointer bg-transparent border-0 p-0"
+                    />
+                    {targetColor && (
+                      <button 
+                        onClick={() => setTargetColor('')}
+                        className="text-xs text-white/50 hover:text-white transition-colors"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-4 cursor-pointer p-5 bg-[#1a1a1a] border border-white/10 rounded-2xl hover:bg-white/5 transition-colors w-full md:w-auto shadow-lg">
+                  <div className="relative flex items-center">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer"
+                      checked={enableDetailShots}
+                      onChange={(e) => setEnableDetailShots(e.target.checked)}
+                    />
+                    <div className="w-12 h-7 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-white/40"></div>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-base font-medium text-white">Generate Detail Shots</span>
+                    <span className="text-xs text-white/50">Includes Texture, Stitching, and Design close-ups</span>
+                  </div>
+                </label>
+              </div>
               
-              {selectedFile && !cleanUpState.loading && !cleanUpState.image && (
-                <motion.button
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  onClick={generateAll}
-                  className="mt-12 group relative px-8 py-4 bg-white text-black rounded-full font-medium tracking-wide overflow-hidden"
-                >
-                  <span className="relative z-10 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4" />
-                    Generate All Assets
-                  </span>
-                  <div className="absolute inset-0 bg-gray-200 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-300" />
-                </motion.button>
+              {selectedFile && !cleanUpFrontState.loading && !cleanUpFrontState.image && (
+                <div className="mt-12 flex flex-col items-center gap-6">
+                  <motion.button
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    onClick={generateAll}
+                    className="group relative px-8 py-4 bg-white text-black rounded-full font-medium tracking-wide overflow-hidden shadow-xl"
+                  >
+                    <span className="relative z-10 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4" />
+                      Generate All Assets
+                    </span>
+                    <div className="absolute inset-0 bg-gray-200 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-300" />
+                  </motion.button>
+                </div>
               )}
             </div>
           </section>
 
           {/* Results Grid */}
-          {(cleanUpState.loading || cleanUpState.image || modelFrontState.loading || modelFrontState.image) && (
-            <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-8">
-              
-              {/* 1. Clean Up */}
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-              >
-                <GeneratedImage
-                  title="Pristine Clean-Up"
-                  description="Wrinkle-free, studio-quality product shot."
-                  image={cleanUpState.image}
-                  loading={cleanUpState.loading}
-                  aspectRatio="square"
-                  onDownload={cleanUpState.image ? () => downloadImage(cleanUpState.image!, 'cleanup.png') : undefined}
-                />
-              </motion.div>
+          {(cleanUpFrontState.loading || cleanUpFrontState.image || modelFrontState.loading || modelFrontState.image) && (
+            <div className="space-y-16 mb-16">
+              {/* Clean Up Section */}
+              <section>
+                <h2 className="text-2xl font-serif italic mb-6 text-white/80">Pristine Clean-Up</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                    <GeneratedImage
+                      title="Front View"
+                      description="Wrinkle-free, studio-quality front shot."
+                      image={cleanUpFrontState.image}
+                      loading={cleanUpFrontState.loading}
+                      aspectRatio="square"
+                      onDownload={cleanUpFrontState.image ? () => downloadImage(cleanUpFrontState.image!, 'cleanup-front.png') : undefined}
+                      onRegenerate={generateCleanUpFront}
+                    />
+                  </motion.div>
+                  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                    <GeneratedImage
+                      title="Back View"
+                      description="Wrinkle-free, studio-quality back shot."
+                      image={cleanUpBackState.image}
+                      loading={cleanUpBackState.loading}
+                      aspectRatio="square"
+                      onDownload={cleanUpBackState.image ? () => downloadImage(cleanUpBackState.image!, 'cleanup-back.png') : undefined}
+                      onRegenerate={generateCleanUpBack}
+                    />
+                  </motion.div>
+                </div>
+              </section>
 
-              {/* 2. Model Front */}
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-              >
-                <GeneratedImage
-                  title="Korean Model (Front)"
-                  description="Front view editorial shot."
-                  image={modelFrontState.image}
-                  loading={modelFrontState.loading}
-                  aspectRatio="portrait"
-                  onDownload={modelFrontState.image ? () => downloadImage(modelFrontState.image!, 'model-front.png') : undefined}
-                />
-              </motion.div>
+              {/* Model Fitting Section */}
+              <section>
+                <h2 className="text-2xl font-serif italic mb-6 text-white/80">Model Fitting</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+                    <GeneratedImage
+                      title="Front Shot"
+                      description="Front view editorial shot."
+                      image={modelFrontState.image}
+                      loading={modelFrontState.loading}
+                      aspectRatio="portrait"
+                      onDownload={modelFrontState.image ? () => downloadImage(modelFrontState.image!, 'model-front.png') : undefined}
+                      onRegenerate={async () => generateModelFrontShot(await getCleanUpSourcePart())}
+                    />
+                  </motion.div>
+                  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+                    <GeneratedImage
+                      title="Side Shot"
+                      description="Side profile editorial shot."
+                      image={modelSideState.image}
+                      loading={modelSideState.loading}
+                      aspectRatio="portrait"
+                      onDownload={modelSideState.image ? () => downloadImage(modelSideState.image!, 'model-side.png') : undefined}
+                      onRegenerate={async () => generateModelSideShot(await getCleanUpSourcePart())}
+                    />
+                  </motion.div>
+                  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+                    <GeneratedImage
+                      title="Full Body Shot"
+                      description="Chin-down full body with stylish coordination."
+                      image={modelFullBodyState.image}
+                      loading={modelFullBodyState.loading}
+                      aspectRatio="portrait"
+                      onDownload={modelFullBodyState.image ? () => downloadImage(modelFullBodyState.image!, 'model-fullbody.png') : undefined}
+                      onRegenerate={async () => generateModelFullBody(await getCleanUpSourcePart())}
+                    />
+                  </motion.div>
+                </div>
+              </section>
 
-              {/* 3. Model Side */}
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-              >
-                <GeneratedImage
-                  title="Korean Model (Side)"
-                  description="Side profile editorial shot."
-                  image={modelSideState.image}
-                  loading={modelSideState.loading}
-                  aspectRatio="portrait"
-                  onDownload={modelSideState.image ? () => downloadImage(modelSideState.image!, 'model-side.png') : undefined}
-                />
-              </motion.div>
-            </section>
+              {/* Coordination Recommendation Section */}
+              <section>
+                <h2 className="text-2xl font-serif italic mb-6 text-white/80">Coordination Recommendation</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
+                    <GeneratedImage
+                      title="Outfit Flat Lay"
+                      description="Recommended styling and accessories."
+                      image={modelCoordinationState.image}
+                      loading={modelCoordinationState.loading}
+                      aspectRatio="square"
+                      onDownload={modelCoordinationState.image ? () => downloadImage(modelCoordinationState.image!, 'coordination.png') : undefined}
+                      onRegenerate={async () => generateCoordination(await getCleanUpSourcePart())}
+                    />
+                  </motion.div>
+                </div>
+              </section>
+            </div>
           )}
 
           {/* Detail Shots Grid */}
@@ -617,6 +1017,7 @@ export default function App() {
                   loading={detailTextureState.loading}
                   aspectRatio="square"
                   onDownload={detailTextureState.image ? () => downloadImage(detailTextureState.image!, 'detail-texture.png') : undefined}
+                  onRegenerate={generateDetailTexture}
                 />
               </motion.div>
 
@@ -633,6 +1034,7 @@ export default function App() {
                   loading={detailStitchState.loading}
                   aspectRatio="square"
                   onDownload={detailStitchState.image ? () => downloadImage(detailStitchState.image!, 'detail-stitching.png') : undefined}
+                  onRegenerate={generateDetailStitch}
                 />
               </motion.div>
 
@@ -649,6 +1051,7 @@ export default function App() {
                   loading={detailDesignState.loading}
                   aspectRatio="square"
                   onDownload={detailDesignState.image ? () => downloadImage(detailDesignState.image!, 'detail-design.png') : undefined}
+                  onRegenerate={generateDetailDesign}
                 />
               </motion.div>
             </section>

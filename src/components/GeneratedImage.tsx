@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, Loader2, Maximize2 } from 'lucide-react';
+import { Download, Loader2, Maximize2, RefreshCw } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 
@@ -9,6 +9,7 @@ interface GeneratedImageProps {
   title: string;
   description: string;
   onDownload?: () => void;
+  onRegenerate?: () => void;
   aspectRatio?: "square" | "portrait";
 }
 
@@ -18,6 +19,7 @@ export function GeneratedImage({
   title, 
   description, 
   onDownload,
+  onRegenerate,
   aspectRatio = "square" 
 }: GeneratedImageProps) {
   return (
@@ -48,6 +50,15 @@ export function GeneratedImage({
             
             {/* Actions Overlay */}
             <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-y-2 group-hover:translate-y-0">
+              {onRegenerate && (
+                <button 
+                  onClick={onRegenerate}
+                  className="p-2 rounded-full bg-white/10 backdrop-blur-md hover:bg-white/20 text-white border border-white/20 transition-all"
+                  title="Regenerate"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              )}
               {onDownload && (
                 <button 
                   onClick={onDownload}
