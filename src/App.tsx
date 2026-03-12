@@ -11,9 +11,6 @@ import { AccessGate } from './components/AccessGate';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, Camera, ZoomIn, Shirt, Lock, Settings, Key, X, Save } from 'lucide-react';
 
-// Initialize Gemini API
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
 type GenerationState = {
   loading: boolean;
   image: string | null;
@@ -50,6 +47,8 @@ export default function App() {
   
   const [enableDetailShots, setEnableDetailShots] = useState(false);
   const [modelGender, setModelGender] = useState<'female' | 'male' | 'unisex'>('female');
+  const [modelFit, setModelFit] = useState<'overfit' | 'regular' | 'slim'>('regular');
+  const [modelStyle, setModelStyle] = useState<'Casual' | 'Classic' | 'Streetwear' | 'Business casual' | 'Chic' | 'Preppy' | 'Athleisure'>('Classic');
   const [targetColor, setTargetColor] = useState<string>('');
 
   useEffect(() => {
@@ -126,7 +125,17 @@ export default function App() {
     }
     
     // Check if we have an injected key (AI Studio environment or Vercel env var)
-    const envKey = typeof process !== 'undefined' && process.env ? process.env.GEMINI_API_KEY : undefined;
+    let envKey;
+    try {
+      // Vite replaces this statically if defined in vite.config.ts
+      envKey = process.env.GEMINI_API_KEY;
+    } catch (e) {
+      // Ignore ReferenceError if process is not defined in browser
+    }
+    
+    // Fallback to VITE_ prefixed env var for standard Vite deployments on Vercel
+    envKey = envKey || import.meta.env.VITE_GEMINI_API_KEY;
+    
     if (envKey) {
       return new GoogleGenAI({ apiKey: envKey });
     }
@@ -407,9 +416,11 @@ export default function App() {
       const parts: any[] = [clothingPart];
       
       const genderText = modelGender === 'unisex' ? '' : modelGender.toUpperCase();
+      const fitInstruction = modelFit !== 'regular' ? ` The clothing fit should be ${modelFit}.` : '';
+      const styleInstruction = ` The overall styling and outfit vibe is ${modelStyle}.`;
       let colorInstruction = targetColor ? ` CRITICAL: Change the color of the clothing to exactly match this hex color code: ${targetColor}. DO NOT keep the original color. Ensure the fabric texture and shading remain realistic while adopting this new color.` : ` (DO NOT change the original color of the clothing or styling to match the background, keep the clothing's original color and use diverse colors for styling).`;
 
-      let prompt = `A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing this exact clothing item. The clothing MUST be worn by a person, NOT displayed flat. Front view. Cropped shot focusing heavily on the clothing item (zoomed in on the torso/upper body if it is a top). The model's face must NOT be visible (cropped below the face/eyes). Trendy Seoul street style or modern minimalist cafe look. Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction} Natural posing. Cinematic lighting.`;
+      let prompt = `A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing this exact clothing item. The clothing MUST be worn by a person, NOT displayed flat. Front view. Cropped shot focusing heavily on the clothing item (zoomed in on the torso/upper body if it is a top). The model's face must NOT be visible (cropped below the face/eyes). Trendy Seoul street style or modern minimalist cafe look.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction} Natural posing. Cinematic lighting.`;
       
       parts.push({ text: prompt });
 
@@ -446,9 +457,11 @@ export default function App() {
       const parts: any[] = [clothingPart];
       
       const genderText = modelGender === 'unisex' ? '' : modelGender.toUpperCase();
+      const fitInstruction = modelFit !== 'regular' ? ` The clothing fit should be ${modelFit}.` : '';
+      const styleInstruction = ` The overall styling and outfit vibe is ${modelStyle}.`;
       let colorInstruction = targetColor ? ` CRITICAL: Change the color of the clothing to exactly match this hex color code: ${targetColor}. DO NOT keep the original color. Ensure the fabric texture and shading remain realistic while adopting this new color.` : ` (DO NOT change the original color of the clothing or styling to match the background, keep the clothing's original color and use diverse colors for styling).`;
 
-      let prompt = `A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing this exact clothing item. The clothing MUST be worn by a person, NOT displayed flat. Side profile view. Cropped shot focusing heavily on the clothing item (zoomed in on the torso/upper body if it is a top). The model's face must NOT be visible (cropped below the face/eyes). Trendy Seoul street style or modern minimalist cafe look. Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction} Natural posing. Cinematic lighting.`;
+      let prompt = `A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing this exact clothing item. The clothing MUST be worn by a person, NOT displayed flat. Side profile view. Cropped shot focusing heavily on the clothing item (zoomed in on the torso/upper body if it is a top). The model's face must NOT be visible (cropped below the face/eyes). Trendy Seoul street style or modern minimalist cafe look.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction} Natural posing. Cinematic lighting.`;
       
       parts.push({ text: prompt });
 
@@ -499,12 +512,14 @@ export default function App() {
       }
       
       const genderText = modelGender === 'unisex' ? '' : modelGender.toUpperCase();
+      const fitInstruction = modelFit !== 'regular' ? ` The clothing fit should be ${modelFit}.` : '';
+      const styleInstruction = ` The overall styling and outfit vibe is ${modelStyle}.`;
       let colorInstruction = targetColor ? ` CRITICAL: Change the color of the clothing to exactly match this hex color code: ${targetColor}. DO NOT keep the original color. Ensure the fabric texture and shading remain realistic while adopting this new color.` : ` (DO NOT change the original color of the clothing or styling to match the background, keep the clothing's original color and use diverse colors for styling).`;
 
-      let prompt = `A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing this exact clothing item. The clothing MUST be worn by a person, NOT displayed flat. Full body shot cropped from the chin down (face must NOT be visible). The model is wearing a highly trendy, youthful Seoul street style or modern minimalist cafe look coordination (e.g., wide-fit trousers, trendy sneakers or boots). Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction} Natural posing. Cinematic lighting.`;
+      let prompt = `A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing this exact clothing item. The clothing MUST be worn by a person, NOT displayed flat. Full body shot cropped from the chin down (face must NOT be visible). The model is wearing a highly trendy, youthful Seoul street style or modern minimalist cafe look coordination (e.g., wide-fit trousers, trendy sneakers or boots).${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction} Natural posing. Cinematic lighting.`;
 
       if (coordPart) {
-        prompt = `Image 1 is the main clothing item. Image 2 is the recommended coordination outfit. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1, styled EXACTLY with the matching items (bottoms, shoes, accessories) shown in Image 2. The clothing MUST be worn by a person, NOT displayed flat. Full body shot cropped from the chin down (face must NOT be visible). Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction} Natural posing. Cinematic lighting.`;
+        prompt = `Image 1 is the main clothing item. Image 2 is the recommended coordination outfit. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1, styled EXACTLY with the matching items (bottoms, shoes, accessories) shown in Image 2. The clothing MUST be worn by a person, NOT displayed flat. Full body shot cropped from the chin down (face must NOT be visible).${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction} Natural posing. Cinematic lighting.`;
       }
 
       if (selectedBackgroundFile) {
@@ -512,9 +527,9 @@ export default function App() {
         parts.push(bgPart);
         
         if (coordPart) {
-          prompt = `Image 1 is the main clothing item. Image 2 is the recommended coordination outfit. Image 3 is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1, styled EXACTLY with the matching items (bottoms, shoes, accessories) shown in Image 2. The model MUST be placed naturally into the exact environment shown in Image 3. Full body shot cropped from the chin down (face must NOT be visible). Strictly avoid outdated or middle-aged styling.${colorInstruction} Cinematic lighting matching the background environment. Ensure the clothing fits naturally and the composite looks photorealistic.`;
+          prompt = `Image 1 is the main clothing item. Image 2 is the recommended coordination outfit. Image 3 is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1, styled EXACTLY with the matching items (bottoms, shoes, accessories) shown in Image 2. The model MUST be placed naturally into the exact environment shown in Image 3. Full body shot cropped from the chin down (face must NOT be visible).${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling.${colorInstruction} Cinematic lighting matching the background environment. Ensure the clothing fits naturally and the composite looks photorealistic.`;
         } else {
-          prompt = `Image 1 is the clothing item. Image 2 is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1. The model MUST be placed naturally into the exact environment shown in Image 2. Full body shot cropped from the chin down (face must NOT be visible). The model is wearing a highly trendy, youthful Seoul street style or modern minimalist cafe look coordination. Strictly avoid outdated or middle-aged styling.${colorInstruction} Cinematic lighting matching the background environment. Ensure the clothing fits naturally and the composite looks photorealistic.`;
+          prompt = `Image 1 is the clothing item. Image 2 is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1. The model MUST be placed naturally into the exact environment shown in Image 2. Full body shot cropped from the chin down (face must NOT be visible). The model is wearing a highly trendy, youthful Seoul street style or modern minimalist cafe look coordination.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling.${colorInstruction} Cinematic lighting matching the background environment. Ensure the clothing fits naturally and the composite looks photorealistic.`;
         }
       }
       
@@ -552,9 +567,11 @@ export default function App() {
       const clothingPart = sourcePartOverride || await fileToGenerativePart(selectedFile!);
       const parts: any[] = [clothingPart];
       
+      const fitInstruction = modelFit !== 'regular' ? ` The clothing fit should be ${modelFit}.` : '';
+      const styleInstruction = ` The overall styling and outfit vibe is ${modelStyle}.`;
       let colorInstruction = targetColor ? ` CRITICAL: Change the color of the main clothing item to exactly match this hex color code: ${targetColor}. DO NOT keep the original color. Ensure the fabric texture and shading remain realistic while adopting this new color.` : ` (DO NOT change the original color of the clothing or styling to match the background, keep the clothing's original color and use diverse colors for styling)`;
 
-      const prompt = `A highly stylish fashion coordination flat lay (outfit grid) featuring this exact clothing item as the centerpiece. Pair it with trendy matching bottoms (like wide-fit slacks or trendy denim), stylish sneakers or modern shoes, and youthful accessories to create a sophisticated, modern 20-something Korean fashion look (Seoul street style or minimalist cafe aesthetic). Strictly avoid outdated or middle-aged styling. High fashion editorial style, luxurious cream background${colorInstruction}, perfect lighting, neat arrangement.`;
+      const prompt = `A highly stylish fashion coordination flat lay (outfit grid) featuring this exact clothing item as the centerpiece. Pair it with trendy matching bottoms (like wide-fit slacks or trendy denim), stylish sneakers or modern shoes, and youthful accessories to create a sophisticated, modern 20-something Korean fashion look (Seoul street style or minimalist cafe aesthetic).${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. High fashion editorial style, luxurious cream background${colorInstruction}, perfect lighting, neat arrangement.`;
       
       parts.push({ text: prompt });
 
@@ -848,6 +865,46 @@ export default function App() {
                       </button>
                     ))}
                   </div>
+                </div>
+
+                <div className="flex items-center gap-4 p-5 bg-[#1a1a1a] border border-white/10 rounded-2xl w-full md:w-auto shadow-lg">
+                  <div className="flex flex-col mr-4">
+                    <span className="text-base font-medium text-white">Fit</span>
+                    <span className="text-xs text-white/50">Select clothing fit</span>
+                  </div>
+                  <div className="flex bg-white/5 rounded-lg p-1">
+                    {(['overfit', 'regular', 'slim'] as const).map((fit) => (
+                      <button
+                        key={fit}
+                        onClick={() => setModelFit(fit)}
+                        className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-all ${
+                          modelFit === fit 
+                            ? 'bg-white text-black shadow-sm' 
+                            : 'text-white/60 hover:text-white hover:bg-white/10'
+                        }`}
+                      >
+                        {fit}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 p-5 bg-[#1a1a1a] border border-white/10 rounded-2xl w-full md:w-auto shadow-lg">
+                  <div className="flex flex-col mr-4">
+                    <span className="text-base font-medium text-white">Style</span>
+                    <span className="text-xs text-white/50">Select outfit style</span>
+                  </div>
+                  <select
+                    value={modelStyle}
+                    onChange={(e) => setModelStyle(e.target.value as any)}
+                    className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-white/20"
+                  >
+                    {['Casual', 'Classic', 'Streetwear', 'Business casual', 'Chic', 'Preppy', 'Athleisure'].map((style) => (
+                      <option key={style} value={style} className="bg-[#1a1a1a] text-white">
+                        {style}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="flex items-center gap-4 p-5 bg-[#1a1a1a] border border-white/10 rounded-2xl w-full md:w-auto shadow-lg">
