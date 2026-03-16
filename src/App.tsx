@@ -73,36 +73,18 @@ export default function App() {
 
   const checkApiKey = async () => {
     try {
-      if (manualApiKey) {
+      if (manualApiKey || localStorage.getItem('gemini_manual_key')) {
         setHasApiKey(true);
         setIsCheckingKey(false);
         return;
       }
 
-      if (window.aistudio && window.aistudio.hasSelectedApiKey) {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        setHasApiKey(hasKey);
-      } else {
-        // Fallback for dev environments without the aistudio object
-        setHasApiKey(true);
-      }
+      setHasApiKey(false);
     } catch (e) {
       console.error("Error checking API key:", e);
-      // Don't set false immediately if we might have a manual key
       if (!manualApiKey) setHasApiKey(false);
     } finally {
       setIsCheckingKey(false);
-    }
-  };
-
-  const handleSelectKey = async () => {
-    try {
-      if (window.aistudio && window.aistudio.openSelectKey) {
-        await window.aistudio.openSelectKey();
-        setHasApiKey(true);
-      }
-    } catch (e) {
-      console.error("Error selecting API key:", e);
     }
   };
 
@@ -122,22 +104,6 @@ export default function App() {
   const getAIClient = () => {
     if (manualApiKey) {
       return new GoogleGenAI({ apiKey: manualApiKey });
-    }
-    
-    // Check if we have an injected key (AI Studio environment or Vercel env var)
-    let envKey;
-    try {
-      // Vite replaces this statically if defined in vite.config.ts
-      envKey = process.env.GEMINI_API_KEY;
-    } catch (e) {
-      // Ignore ReferenceError if process is not defined in browser
-    }
-    
-    // Fallback to VITE_ prefixed env var for standard Vite deployments on Vercel
-    envKey = envKey || import.meta.env.VITE_GEMINI_API_KEY;
-    
-    if (envKey) {
-      return new GoogleGenAI({ apiKey: envKey });
     }
     
     // If no key is available, prompt the user
@@ -719,27 +685,7 @@ export default function App() {
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Google Cloud Project</label>
-                  <button
-                    onClick={handleSelectKey}
-                    className="w-full py-3 px-4 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors text-sm"
-                  >
-                    <span>Select Project via AI Studio</span>
-                    <Sparkles className="w-4 h-4 text-white/40" />
-                  </button>
-                </div>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-white/10"></div>
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-[#1a1a1a] px-2 text-white/40">Or enter manually</span>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Manual API Key</label>
+                  <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Gemini API Key</label>
                   <input 
                     type="password" 
                     value={tempApiKey}
@@ -747,6 +693,9 @@ export default function App() {
                     placeholder="AIza..."
                     className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-white/30 transition-colors"
                   />
+                  <p className="text-xs text-white/40 mt-2">
+                    Your API key is stored locally in your browser and never sent to our servers.
+                  </p>
                 </div>
 
                 <button
