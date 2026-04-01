@@ -9,7 +9,7 @@ import { ImageUpload } from './components/ImageUpload';
 import { GeneratedImage } from './components/GeneratedImage';
 import { AccessGate } from './components/AccessGate';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Camera, ZoomIn, Shirt, Lock, Settings, Key, X, Save } from 'lucide-react';
+import { Sparkles, Camera, ZoomIn, Shirt, Lock, Settings, Key, X, Save, RefreshCw } from 'lucide-react';
 
 type GenerationState = {
   loading: boolean;
@@ -46,9 +46,11 @@ export default function App() {
   const [detailDesignState, setDetailDesignState] = useState<GenerationState>({ loading: false, image: null });
   
   const [enableDetailShots, setEnableDetailShots] = useState(false);
+  const [enableCoordinationShot, setEnableCoordinationShot] = useState(false);
   const [modelGender, setModelGender] = useState<'female' | 'male' | 'unisex'>('female');
   const [modelFit, setModelFit] = useState<'overfit' | 'regular' | 'slim'>('regular');
   const [modelStyle, setModelStyle] = useState<'Casual' | 'Classic' | 'Streetwear' | 'Business casual' | 'Chic' | 'Preppy' | 'Athleisure'>('Classic');
+  const [modelPose, setModelPose] = useState<'natural' | 'walking' | 'hands-in-pockets' | 'slight-turn' | 'dynamic'>('natural');
   const [targetColor, setTargetColor] = useState<string>('');
 
   useEffect(() => {
@@ -246,15 +248,17 @@ export default function App() {
     generateModelSideShot(sourcePart);
     
     // Generate coordination first, then use it for full body
-    const coordinationBase64 = await generateCoordination(sourcePart);
     let coordinationPart;
-    if (coordinationBase64) {
-      coordinationPart = {
-        inlineData: {
-          data: coordinationBase64,
-          mimeType: 'image/png'
-        }
-      };
+    if (enableCoordinationShot) {
+      const coordinationBase64 = await generateCoordination(sourcePart);
+      if (coordinationBase64) {
+        coordinationPart = {
+          inlineData: {
+            data: coordinationBase64,
+            mimeType: 'image/png'
+          }
+        };
+      }
     }
     generateModelFullBody(sourcePart, coordinationPart);
   };
@@ -382,11 +386,24 @@ export default function App() {
       const parts: any[] = [clothingPart];
       
       const genderText = modelGender === 'unisex' ? '' : modelGender.toUpperCase();
+      const bodyTypeInstruction = modelGender === 'female' ? ' The model MUST have a tall, slim figure with long legs.' : '';
       const fitInstruction = modelFit !== 'regular' ? ` The clothing fit should be ${modelFit}.` : '';
       const styleInstruction = ` The overall styling and outfit vibe is ${modelStyle}.`;
+      
+      const getPosePrompt = () => {
+        switch(modelPose) {
+          case 'walking': return ' The model is captured mid-walk, showing dynamic movement.';
+          case 'hands-in-pockets': return ' The model is standing casually with hands in pockets.';
+          case 'slight-turn': return ' The model is standing with a slight turn, showing off the garment\'s angle.';
+          case 'dynamic': return ' The model is striking a dynamic, high-fashion editorial pose.';
+          default: return ' Natural, relaxed standing pose.';
+        }
+      };
+      const poseInstruction = getPosePrompt();
+
       let colorInstruction = targetColor ? ` CRITICAL: Change the color of the clothing to exactly match this hex color code: ${targetColor}. DO NOT keep the original color. Ensure the fabric texture and shading remain realistic while adopting this new color.` : ` (DO NOT change the original color of the clothing or styling to match the background, keep the clothing's original color and use diverse colors for styling).`;
 
-      let prompt = `A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing this exact clothing item. The clothing MUST be worn by a person, NOT displayed flat. Front view. Cropped shot focusing heavily on the clothing item (zoomed in on the torso/upper body if it is a top). The model's face must NOT be visible (cropped below the face/eyes). Trendy Seoul street style or modern minimalist cafe look.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction} Natural posing. Cinematic lighting.`;
+      let prompt = `A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing this exact clothing item.${bodyTypeInstruction} The clothing MUST be worn by a person, NOT displayed flat. Front view, cropped from the chin down (face must NOT be visible). EXTREME CLOSE-UP SHOT focusing heavily on the clothing item's details and fit on the torso/upper body. The crop should be very tight on the garment. Perfectly tailored, high-fashion fit, premium silhouette, elegant drape. Trendy Seoul street style or modern minimalist cafe look.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction}${poseInstruction} Cinematic lighting.`;
       
       parts.push({ text: prompt });
 
@@ -423,11 +440,24 @@ export default function App() {
       const parts: any[] = [clothingPart];
       
       const genderText = modelGender === 'unisex' ? '' : modelGender.toUpperCase();
+      const bodyTypeInstruction = modelGender === 'female' ? ' The model MUST have a tall, slim figure with long legs.' : '';
       const fitInstruction = modelFit !== 'regular' ? ` The clothing fit should be ${modelFit}.` : '';
       const styleInstruction = ` The overall styling and outfit vibe is ${modelStyle}.`;
+      
+      const getPosePrompt = () => {
+        switch(modelPose) {
+          case 'walking': return ' The model is captured mid-walk, showing dynamic movement.';
+          case 'hands-in-pockets': return ' The model is standing casually with hands in pockets.';
+          case 'slight-turn': return ' The model is standing with a slight turn, showing off the garment\'s angle.';
+          case 'dynamic': return ' The model is striking a dynamic, high-fashion editorial pose.';
+          default: return ' Natural, relaxed standing pose.';
+        }
+      };
+      const poseInstruction = getPosePrompt();
+
       let colorInstruction = targetColor ? ` CRITICAL: Change the color of the clothing to exactly match this hex color code: ${targetColor}. DO NOT keep the original color. Ensure the fabric texture and shading remain realistic while adopting this new color.` : ` (DO NOT change the original color of the clothing or styling to match the background, keep the clothing's original color and use diverse colors for styling).`;
 
-      let prompt = `A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing this exact clothing item. The clothing MUST be worn by a person, NOT displayed flat. Side profile view. Cropped shot focusing heavily on the clothing item (zoomed in on the torso/upper body if it is a top). The model's face must NOT be visible (cropped below the face/eyes). Trendy Seoul street style or modern minimalist cafe look.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction} Natural posing. Cinematic lighting.`;
+      let prompt = `A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing this exact clothing item.${bodyTypeInstruction} The clothing MUST be worn by a person, NOT displayed flat. Side profile view, cropped from the chin down (face must NOT be visible). EXTREME CLOSE-UP SHOT focusing heavily on the clothing item's details and fit on the torso/upper body. The crop should be very tight on the garment. Perfectly tailored, high-fashion fit, premium silhouette, elegant drape. Trendy Seoul street style or modern minimalist cafe look.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction}${poseInstruction} Cinematic lighting.`;
       
       parts.push({ text: prompt });
 
@@ -478,14 +508,27 @@ export default function App() {
       }
       
       const genderText = modelGender === 'unisex' ? '' : modelGender.toUpperCase();
+      const bodyTypeInstruction = modelGender === 'female' ? ' The model MUST have a tall, slim figure with long legs.' : '';
       const fitInstruction = modelFit !== 'regular' ? ` The clothing fit should be ${modelFit}.` : '';
       const styleInstruction = ` The overall styling and outfit vibe is ${modelStyle}.`;
+      
+      const getPosePrompt = () => {
+        switch(modelPose) {
+          case 'walking': return ' The model is captured mid-walk, showing dynamic movement.';
+          case 'hands-in-pockets': return ' The model is standing casually with hands in pockets.';
+          case 'slight-turn': return ' The model is standing with a slight turn, showing off the garment\'s angle.';
+          case 'dynamic': return ' The model is striking a dynamic, high-fashion editorial pose.';
+          default: return ' Natural, relaxed standing pose.';
+        }
+      };
+      const poseInstruction = getPosePrompt();
+
       let colorInstruction = targetColor ? ` CRITICAL: Change the color of the clothing to exactly match this hex color code: ${targetColor}. DO NOT keep the original color. Ensure the fabric texture and shading remain realistic while adopting this new color.` : ` (DO NOT change the original color of the clothing or styling to match the background, keep the clothing's original color and use diverse colors for styling).`;
 
-      let prompt = `A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing this exact clothing item. The clothing MUST be worn by a person, NOT displayed flat. Full body shot cropped from the chin down (face must NOT be visible). The model is wearing a highly trendy, youthful Seoul street style or modern minimalist cafe look coordination (e.g., wide-fit trousers, trendy sneakers or boots).${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction} Natural posing. Cinematic lighting.`;
+      let prompt = `A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing this exact clothing item.${bodyTypeInstruction} The clothing MUST be worn by a person, NOT displayed flat. Full body shot cropped from the chin down (face must NOT be visible). The model is wearing a highly trendy, youthful Seoul street style or modern minimalist cafe look coordination (e.g., wide-fit trousers, trendy sneakers or boots). Perfectly tailored, high-fashion fit, premium silhouette, elegant drape.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. DO NOT add any unnecessary, weird, or excessive accessories (like strange hats, heavy jewelry, weird bags, or random props). Keep the styling clean, minimal, and focused ONLY on the main clothing, bottoms, and shoes. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction}${poseInstruction} Cinematic lighting.`;
 
       if (coordPart) {
-        prompt = `Image 1 is the main clothing item. Image 2 is the recommended coordination outfit. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1, styled EXACTLY with the matching items (bottoms, shoes, accessories) shown in Image 2. The clothing MUST be worn by a person, NOT displayed flat. Full body shot cropped from the chin down (face must NOT be visible).${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction} Natural posing. Cinematic lighting.`;
+        prompt = `Image 1 is the main clothing item. Image 2 is the recommended coordination outfit. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1, styled EXACTLY with the matching items (bottoms, shoes) shown in Image 2.${bodyTypeInstruction} The clothing MUST be worn by a person, NOT displayed flat. Full body shot cropped from the chin down (face must NOT be visible). Perfectly tailored, high-fashion fit, premium silhouette, elegant drape.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. DO NOT add any unnecessary, weird, or excessive accessories (like strange hats, heavy jewelry, weird bags, or random props). Keep the styling clean, minimal, and focused ONLY on the main clothing, bottoms, and shoes. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction}${poseInstruction} Cinematic lighting.`;
       }
 
       if (selectedBackgroundFile) {
@@ -493,9 +536,9 @@ export default function App() {
         parts.push(bgPart);
         
         if (coordPart) {
-          prompt = `Image 1 is the main clothing item. Image 2 is the recommended coordination outfit. Image 3 is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1, styled EXACTLY with the matching items (bottoms, shoes, accessories) shown in Image 2. The model MUST be placed naturally into the exact environment shown in Image 3. Full body shot cropped from the chin down (face must NOT be visible).${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling.${colorInstruction} Cinematic lighting matching the background environment. Ensure the clothing fits naturally and the composite looks photorealistic.`;
+          prompt = `Image 1 is the main clothing item. Image 2 is the recommended coordination outfit. Image 3 is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1, styled EXACTLY with the matching items (bottoms, shoes) shown in Image 2.${bodyTypeInstruction} The model MUST be placed naturally into the exact environment shown in Image 3. Full body shot cropped from the chin down (face must NOT be visible). Perfectly tailored, high-fashion fit, premium silhouette, elegant drape.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. DO NOT add any unnecessary, weird, or excessive accessories (like strange hats, heavy jewelry, weird bags, or random props). Keep the styling clean, minimal, and focused ONLY on the main clothing, bottoms, and shoes.${colorInstruction}${poseInstruction} Cinematic lighting matching the background environment. Ensure the clothing fits naturally and the composite looks photorealistic.`;
         } else {
-          prompt = `Image 1 is the clothing item. Image 2 is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1. The model MUST be placed naturally into the exact environment shown in Image 2. Full body shot cropped from the chin down (face must NOT be visible). The model is wearing a highly trendy, youthful Seoul street style or modern minimalist cafe look coordination.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling.${colorInstruction} Cinematic lighting matching the background environment. Ensure the clothing fits naturally and the composite looks photorealistic.`;
+          prompt = `Image 1 is the clothing item. Image 2 is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1.${bodyTypeInstruction} The model MUST be placed naturally into the exact environment shown in Image 2. Full body shot cropped from the chin down (face must NOT be visible). The model is wearing a highly trendy, youthful Seoul street style or modern minimalist cafe look coordination. Perfectly tailored, high-fashion fit, premium silhouette, elegant drape.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. DO NOT add any unnecessary, weird, or excessive accessories (like strange hats, heavy jewelry, weird bags, or random props). Keep the styling clean, minimal, and focused ONLY on the main clothing, bottoms, and shoes.${colorInstruction}${poseInstruction} Cinematic lighting matching the background environment. Ensure the clothing fits naturally and the composite looks photorealistic.`;
         }
       }
       
@@ -537,7 +580,7 @@ export default function App() {
       const styleInstruction = ` The overall styling and outfit vibe is ${modelStyle}.`;
       let colorInstruction = targetColor ? ` CRITICAL: Change the color of the main clothing item to exactly match this hex color code: ${targetColor}. DO NOT keep the original color. Ensure the fabric texture and shading remain realistic while adopting this new color.` : ` (DO NOT change the original color of the clothing or styling to match the background, keep the clothing's original color and use diverse colors for styling)`;
 
-      const prompt = `A highly stylish fashion coordination flat lay (outfit grid) featuring this exact clothing item as the centerpiece. Pair it with trendy matching bottoms (like wide-fit slacks or trendy denim), stylish sneakers or modern shoes, and youthful accessories to create a sophisticated, modern 20-something Korean fashion look (Seoul street style or minimalist cafe aesthetic).${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. High fashion editorial style, luxurious cream background${colorInstruction}, perfect lighting, neat arrangement.`;
+      const prompt = `A highly stylish fashion coordination flat lay (outfit grid) featuring this exact clothing item as the centerpiece. Pair it with trendy matching bottoms (like wide-fit slacks or trendy denim) and stylish sneakers or modern shoes to create a sophisticated, modern 20-something Korean fashion look (Seoul street style or minimalist cafe aesthetic).${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. DO NOT include any weird, unnecessary, or excessive props like strange hats, heavy jewelry, random bags, or unrelated objects. Keep the flat lay clean, minimal, and focused ONLY on the main clothing, bottoms, and shoes. High fashion editorial style, luxurious cream background${colorInstruction}, perfect lighting, neat arrangement.`;
       
       parts.push({ text: prompt });
 
@@ -639,12 +682,28 @@ export default function App() {
   };
 
   const downloadImage = (dataUrl: string, filename: string) => {
-    const link = document.createElement('a');
-    link.href = dataUrl;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      
+      // Fill white background in case of transparency
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      
+      const jpegUrl = canvas.toDataURL('image/jpeg', 0.95);
+      const link = document.createElement('a');
+      link.href = jpegUrl;
+      link.download = filename.replace(/\.png$/, '.jpg');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+    img.src = dataUrl;
   };
 
   if (!isAuthorized) {
@@ -858,6 +917,24 @@ export default function App() {
 
                 <div className="flex items-center gap-4 p-5 bg-[#1a1a1a] border border-white/10 rounded-2xl w-full md:w-auto shadow-lg">
                   <div className="flex flex-col mr-4">
+                    <span className="text-base font-medium text-white">Pose</span>
+                    <span className="text-xs text-white/50">Select model pose</span>
+                  </div>
+                  <select
+                    value={modelPose}
+                    onChange={(e) => setModelPose(e.target.value as any)}
+                    className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-white/20"
+                  >
+                    <option value="natural" className="bg-[#1a1a1a] text-white">Natural</option>
+                    <option value="walking" className="bg-[#1a1a1a] text-white">Walking</option>
+                    <option value="hands-in-pockets" className="bg-[#1a1a1a] text-white">Hands in Pockets</option>
+                    <option value="slight-turn" className="bg-[#1a1a1a] text-white">Slight Turn</option>
+                    <option value="dynamic" className="bg-[#1a1a1a] text-white">Dynamic</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-4 p-5 bg-[#1a1a1a] border border-white/10 rounded-2xl w-full md:w-auto shadow-lg">
+                  <div className="flex flex-col mr-4">
                     <span className="text-base font-medium text-white">Target Color</span>
                     <span className="text-xs text-white/50">Optional: Change clothing color</span>
                   </div>
@@ -894,6 +971,22 @@ export default function App() {
                     <span className="text-xs text-white/50">Includes Texture, Stitching, and Design close-ups</span>
                   </div>
                 </label>
+
+                <label className="flex items-center gap-4 cursor-pointer p-5 bg-[#1a1a1a] border border-white/10 rounded-2xl hover:bg-white/5 transition-colors w-full md:w-auto shadow-lg">
+                  <div className="relative flex items-center">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer"
+                      checked={enableCoordinationShot}
+                      onChange={(e) => setEnableCoordinationShot(e.target.checked)}
+                    />
+                    <div className="w-12 h-7 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-white/40"></div>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-base font-medium text-white">Generate Coordination Shot</span>
+                    <span className="text-xs text-white/50">Includes outfit grid flat lay</span>
+                  </div>
+                </label>
               </div>
               
               {selectedFile && !cleanUpFrontState.loading && !cleanUpFrontState.image && (
@@ -918,6 +1011,18 @@ export default function App() {
           {/* Results Grid */}
           {(cleanUpFrontState.loading || cleanUpFrontState.image || modelFrontState.loading || modelFrontState.image) && (
             <div className="space-y-16 mb-16">
+              <div className="flex justify-end mb-8">
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  onClick={generateAll}
+                  className="flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors border border-white/20 text-sm font-medium tracking-wide shadow-lg backdrop-blur-sm"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Regenerate All Images
+                </motion.button>
+              </div>
+
               {/* Clean Up Section */}
               <section>
                 <h2 className="text-2xl font-serif italic mb-6 text-white/80">Pristine Clean-Up</h2>
@@ -988,22 +1093,24 @@ export default function App() {
               </section>
 
               {/* Coordination Recommendation Section */}
-              <section>
-                <h2 className="text-2xl font-serif italic mb-6 text-white/80">Coordination Recommendation</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
-                    <GeneratedImage
-                      title="Outfit Flat Lay"
-                      description="Recommended styling and accessories."
-                      image={modelCoordinationState.image}
-                      loading={modelCoordinationState.loading}
-                      aspectRatio="square"
-                      onDownload={modelCoordinationState.image ? () => downloadImage(modelCoordinationState.image!, 'coordination.png') : undefined}
-                      onRegenerate={async () => generateCoordination(await getCleanUpSourcePart())}
-                    />
-                  </motion.div>
-                </div>
-              </section>
+              {enableCoordinationShot && (
+                <section>
+                  <h2 className="text-2xl font-serif italic mb-6 text-white/80">Coordination Recommendation</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
+                      <GeneratedImage
+                        title="Outfit Flat Lay"
+                        description="Recommended styling and accessories."
+                        image={modelCoordinationState.image}
+                        loading={modelCoordinationState.loading}
+                        aspectRatio="square"
+                        onDownload={modelCoordinationState.image ? () => downloadImage(modelCoordinationState.image!, 'coordination.png') : undefined}
+                        onRegenerate={async () => generateCoordination(await getCleanUpSourcePart())}
+                      />
+                    </motion.div>
+                  </div>
+                </section>
+              )}
             </div>
           )}
 

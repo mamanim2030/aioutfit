@@ -46,29 +46,7 @@ export function GeneratedImage({
               alt={title} 
               className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
             />
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
-            
-            {/* Actions Overlay */}
-            <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-y-2 group-hover:translate-y-0">
-              {onRegenerate && (
-                <button 
-                  onClick={onRegenerate}
-                  className="p-2 rounded-full bg-white/10 backdrop-blur-md hover:bg-white/20 text-white border border-white/20 transition-all"
-                  title="Regenerate"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                </button>
-              )}
-              {onDownload && (
-                <button 
-                  onClick={onDownload}
-                  className="p-2 rounded-full bg-white/10 backdrop-blur-md hover:bg-white/20 text-white border border-white/20 transition-all"
-                  title="Download"
-                >
-                  <Download className="w-4 h-4" />
-                </button>
-              )}
-            </div>
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300 pointer-events-none" />
           </>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-white/10">
@@ -77,9 +55,36 @@ export function GeneratedImage({
         )}
       </div>
       
-      <p className="mt-3 text-sm text-white/50 font-light leading-relaxed">
-        {description}
-      </p>
+      <div className="mt-4 flex items-start justify-between gap-4">
+        <p className="text-sm text-white/50 font-light leading-relaxed flex-1">
+          {description}
+        </p>
+        
+        {image && !loading && (
+          <div className="flex gap-2 shrink-0">
+            {onRegenerate && (
+              <button 
+                onClick={onRegenerate}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-all text-xs uppercase tracking-wider"
+                title="Regenerate"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Regenerate</span>
+              </button>
+            )}
+            {onDownload && (
+              <button 
+                onClick={onDownload}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-all text-xs uppercase tracking-wider"
+                title="Download"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Save</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
