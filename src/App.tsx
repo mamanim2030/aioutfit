@@ -37,6 +37,7 @@ export default function App() {
   const [cleanUpBackState, setCleanUpBackState] = useState<GenerationState>({ loading: false, image: null });
   const [modelFrontState, setModelFrontState] = useState<GenerationState>({ loading: false, image: null });
   const [modelSideState, setModelSideState] = useState<GenerationState>({ loading: false, image: null });
+  const [modelBackState, setModelBackState] = useState<GenerationState>({ loading: false, image: null });
   const [modelFullBodyState, setModelFullBodyState] = useState<GenerationState>({ loading: false, image: null });
   const [modelCoordinationState, setModelCoordinationState] = useState<GenerationState>({ loading: false, image: null });
   
@@ -229,7 +230,7 @@ export default function App() {
 
     // Generate clean up front and back
     const cleanUpFrontBase64 = await generateCleanUpFront();
-    generateCleanUpBack(cleanUpFrontBase64);
+    const cleanUpBackBase64 = await generateCleanUpBack(cleanUpFrontBase64);
     
     let sourcePart;
     if (cleanUpFrontBase64) {
@@ -243,9 +244,24 @@ export default function App() {
       sourcePart = await fileToGenerativePart(selectedFile);
     }
 
+    let backSourcePart;
+    if (cleanUpBackBase64) {
+      backSourcePart = {
+        inlineData: {
+          data: cleanUpBackBase64,
+          mimeType: 'image/png'
+        }
+      };
+    } else if (selectedBackFile) {
+      backSourcePart = await fileToGenerativePart(selectedBackFile);
+    } else {
+      backSourcePart = sourcePart; // Fallback to front if no back image exists
+    }
+
     // Pass the cleaned-up image (or original fallback) to model shots
     generateModelFrontShot(sourcePart);
     generateModelSideShot(sourcePart);
+    generateModelBackShot(backSourcePart);
     
     // Generate coordination first, then use it for full body
     let coordinationPart;
@@ -405,6 +421,12 @@ export default function App() {
 
       let prompt = `A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing this exact clothing item.${bodyTypeInstruction} The clothing MUST be worn by a person, NOT displayed flat. Front view, cropped from the chin down (face must NOT be visible). EXTREME CLOSE-UP SHOT focusing heavily on the clothing item's details and fit on the torso/upper body. The crop should be very tight on the garment. Perfectly tailored, high-fashion fit, premium silhouette, elegant drape. Trendy Seoul street style or modern minimalist cafe look.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction}${poseInstruction} Cinematic lighting.`;
       
+      if (selectedBackgroundFile) {
+        const bgPart = await fileToGenerativePart(selectedBackgroundFile);
+        parts.push(bgPart);
+        prompt = `Image 1 is the clothing item. Image 2 is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1.${bodyTypeInstruction} The model MUST be placed naturally into the exact environment shown in Image 2. Front view, cropped from the chin down (face must NOT be visible). EXTREME CLOSE-UP SHOT focusing heavily on the clothing item's details and fit on the torso/upper body. The crop should be very tight on the garment. Perfectly tailored, high-fashion fit, premium silhouette, elegant drape. Trendy Seoul street style or modern minimalist cafe look.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling.${colorInstruction}${poseInstruction} Cinematic lighting perfectly matching the background environment. Ensure the subject is perfectly integrated into the environment with realistic shadows, matching lighting direction, and natural depth of field. It MUST NOT look like a cheap composite or pasted on. Ensure the clothing fits naturally and the overall image looks like a single, cohesive, photorealistic photograph.`;
+      }
+
       parts.push({ text: prompt });
 
       const response = await ai.models.generateContent({
@@ -459,6 +481,12 @@ export default function App() {
 
       let prompt = `A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing this exact clothing item.${bodyTypeInstruction} The clothing MUST be worn by a person, NOT displayed flat. Side profile view, cropped from the chin down (face must NOT be visible). EXTREME CLOSE-UP SHOT focusing heavily on the clothing item's details and fit on the torso/upper body. The crop should be very tight on the garment. Perfectly tailored, high-fashion fit, premium silhouette, elegant drape. Trendy Seoul street style or modern minimalist cafe look.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction}${poseInstruction} Cinematic lighting.`;
       
+      if (selectedBackgroundFile) {
+        const bgPart = await fileToGenerativePart(selectedBackgroundFile);
+        parts.push(bgPart);
+        prompt = `Image 1 is the clothing item. Image 2 is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1.${bodyTypeInstruction} The model MUST be placed naturally into the exact environment shown in Image 2. Side profile view, cropped from the chin down (face must NOT be visible). EXTREME CLOSE-UP SHOT focusing heavily on the clothing item's details and fit on the torso/upper body. The crop should be very tight on the garment. Perfectly tailored, high-fashion fit, premium silhouette, elegant drape. Trendy Seoul street style or modern minimalist cafe look.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling.${colorInstruction}${poseInstruction} Cinematic lighting perfectly matching the background environment. Ensure the subject is perfectly integrated into the environment with realistic shadows, matching lighting direction, and natural depth of field. It MUST NOT look like a cheap composite or pasted on. Ensure the clothing fits naturally and the overall image looks like a single, cohesive, photorealistic photograph.`;
+      }
+
       parts.push({ text: prompt });
 
       const response = await ai.models.generateContent({
@@ -481,6 +509,66 @@ export default function App() {
     } catch (error) {
       console.error("Error generating model side shot:", error);
       setModelSideState({ loading: false, image: null });
+    }
+  };
+
+  const generateModelBackShot = async (sourcePartOverride?: any) => {
+    if (!selectedFile && !sourcePartOverride) return;
+    setModelBackState({ loading: true, image: null });
+
+    try {
+      const ai = getAIClient();
+      const clothingPart = sourcePartOverride || await fileToGenerativePart(selectedFile!);
+      const parts: any[] = [clothingPart];
+      
+      const genderText = modelGender === 'unisex' ? '' : modelGender.toUpperCase();
+      const bodyTypeInstruction = modelGender === 'female' ? ' The model MUST have a tall, slim figure with long legs.' : '';
+      const fitInstruction = modelFit !== 'regular' ? ` The clothing fit should be ${modelFit}.` : '';
+      const styleInstruction = ` The overall styling and outfit vibe is ${modelStyle}.`;
+      
+      const getPosePrompt = () => {
+        switch(modelPose) {
+          case 'walking': return ' The model is captured mid-walk from behind, showing dynamic movement.';
+          case 'hands-in-pockets': return ' The model is standing casually from behind.';
+          case 'slight-turn': return ' The model is standing with a slight turn from behind, showing off the garment\'s angle.';
+          case 'dynamic': return ' The model is striking a dynamic, high-fashion editorial pose from behind.';
+          default: return ' Natural, relaxed standing pose from behind.';
+        }
+      };
+      const poseInstruction = getPosePrompt();
+
+      let colorInstruction = targetColor ? ` CRITICAL: Change the color of the clothing to exactly match this hex color code: ${targetColor}. DO NOT keep the original color. Ensure the fabric texture and shading remain realistic while adopting this new color.` : ` (DO NOT change the original color of the clothing or styling to match the background, keep the clothing's original color and use diverse colors for styling).`;
+
+      let prompt = `A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing this exact clothing item.${bodyTypeInstruction} The clothing MUST be worn by a person, NOT displayed flat. Back profile view, cropped from the chin down (face must NOT be visible). EXTREME CLOSE-UP SHOT focusing heavily on the clothing item's details and fit on the torso/upper body from the back. The crop should be very tight on the garment. Perfectly tailored, high-fashion fit, premium silhouette, elegant drape. Trendy Seoul street style or modern minimalist cafe look.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction}${poseInstruction} Cinematic lighting.`;
+      
+      if (selectedBackgroundFile) {
+        const bgPart = await fileToGenerativePart(selectedBackgroundFile);
+        parts.push(bgPart);
+        prompt = `Image 1 is the clothing item. Image 2 is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1.${bodyTypeInstruction} The model MUST be placed naturally into the exact environment shown in Image 2. Back profile view, cropped from the chin down (face must NOT be visible). EXTREME CLOSE-UP SHOT focusing heavily on the clothing item's details and fit on the torso/upper body from the back. The crop should be very tight on the garment. Perfectly tailored, high-fashion fit, premium silhouette, elegant drape. Trendy Seoul street style or modern minimalist cafe look.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling.${colorInstruction}${poseInstruction} Cinematic lighting perfectly matching the background environment. Ensure the subject is perfectly integrated into the environment with realistic shadows, matching lighting direction, and natural depth of field. It MUST NOT look like a cheap composite or pasted on. Ensure the clothing fits naturally and the overall image looks like a single, cohesive, photorealistic photograph.`;
+      }
+
+      parts.push({ text: prompt });
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-image-preview',
+        contents: { parts },
+        config: {
+          imageConfig: {
+            aspectRatio: "3:4",
+            imageSize: "1K"
+          }
+        }
+      });
+
+      const generatedImage = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+      if (generatedImage) {
+        setModelBackState({ loading: false, image: `data:image/png;base64,${generatedImage}` });
+      } else {
+        setModelBackState({ loading: false, image: null });
+      }
+    } catch (error) {
+      console.error("Error generating model back shot:", error);
+      setModelBackState({ loading: false, image: null });
     }
   };
 
@@ -536,9 +624,9 @@ export default function App() {
         parts.push(bgPart);
         
         if (coordPart) {
-          prompt = `Image 1 is the main clothing item. Image 2 is the recommended coordination outfit. Image 3 is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1, styled EXACTLY with the matching items (bottoms, shoes) shown in Image 2.${bodyTypeInstruction} The model MUST be placed naturally into the exact environment shown in Image 3. Full body shot cropped from the chin down (face must NOT be visible). Perfectly tailored, high-fashion fit, premium silhouette, elegant drape.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. DO NOT add any unnecessary, weird, or excessive accessories (like strange hats, heavy jewelry, weird bags, or random props). Keep the styling clean, minimal, and focused ONLY on the main clothing, bottoms, and shoes.${colorInstruction}${poseInstruction} Cinematic lighting matching the background environment. Ensure the clothing fits naturally and the composite looks photorealistic.`;
+          prompt = `Image 1 is the main clothing item. Image 2 is the recommended coordination outfit. Image 3 is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1, styled EXACTLY with the matching items (bottoms, shoes) shown in Image 2.${bodyTypeInstruction} The model MUST be placed naturally into the exact environment shown in Image 3. Full body shot cropped from the chin down (face must NOT be visible). Perfectly tailored, high-fashion fit, premium silhouette, elegant drape.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. DO NOT add any unnecessary, weird, or excessive accessories (like strange hats, heavy jewelry, weird bags, or random props). Keep the styling clean, minimal, and focused ONLY on the main clothing, bottoms, and shoes.${colorInstruction}${poseInstruction} Cinematic lighting perfectly matching the background environment. Ensure the subject is perfectly integrated into the environment with realistic shadows, matching lighting direction, and natural depth of field. It MUST NOT look like a cheap composite or pasted on. Ensure the clothing fits naturally and the overall image looks like a single, cohesive, photorealistic photograph.`;
         } else {
-          prompt = `Image 1 is the clothing item. Image 2 is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1.${bodyTypeInstruction} The model MUST be placed naturally into the exact environment shown in Image 2. Full body shot cropped from the chin down (face must NOT be visible). The model is wearing a highly trendy, youthful Seoul street style or modern minimalist cafe look coordination. Perfectly tailored, high-fashion fit, premium silhouette, elegant drape.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. DO NOT add any unnecessary, weird, or excessive accessories (like strange hats, heavy jewelry, weird bags, or random props). Keep the styling clean, minimal, and focused ONLY on the main clothing, bottoms, and shoes.${colorInstruction}${poseInstruction} Cinematic lighting matching the background environment. Ensure the clothing fits naturally and the composite looks photorealistic.`;
+          prompt = `Image 1 is the clothing item. Image 2 is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1.${bodyTypeInstruction} The model MUST be placed naturally into the exact environment shown in Image 2. Full body shot cropped from the chin down (face must NOT be visible). The model is wearing a highly trendy, youthful Seoul street style or modern minimalist cafe look coordination. Perfectly tailored, high-fashion fit, premium silhouette, elegant drape.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. DO NOT add any unnecessary, weird, or excessive accessories (like strange hats, heavy jewelry, weird bags, or random props). Keep the styling clean, minimal, and focused ONLY on the main clothing, bottoms, and shoes.${colorInstruction}${poseInstruction} Cinematic lighting perfectly matching the background environment. Ensure the subject is perfectly integrated into the environment with realistic shadows, matching lighting direction, and natural depth of field. It MUST NOT look like a cheap composite or pasted on. Ensure the clothing fits naturally and the overall image looks like a single, cohesive, photorealistic photograph.`;
         }
       }
       
@@ -1055,7 +1143,7 @@ export default function App() {
               {/* Model Fitting Section */}
               <section>
                 <h2 className="text-2xl font-serif italic mb-6 text-white/80">Model Fitting</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
                     <GeneratedImage
                       title="Front Shot"
@@ -1076,6 +1164,27 @@ export default function App() {
                       aspectRatio="portrait"
                       onDownload={modelSideState.image ? () => downloadImage(modelSideState.image!, 'model-side.png') : undefined}
                       onRegenerate={async () => generateModelSideShot(await getCleanUpSourcePart())}
+                    />
+                  </motion.div>
+                  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
+                    <GeneratedImage
+                      title="Back Shot"
+                      description="Back view editorial shot."
+                      image={modelBackState.image}
+                      loading={modelBackState.loading}
+                      aspectRatio="portrait"
+                      onDownload={modelBackState.image ? () => downloadImage(modelBackState.image!, 'model-back.png') : undefined}
+                      onRegenerate={async () => {
+                        let backSourcePart;
+                        if (cleanUpBackState.image) {
+                          backSourcePart = { inlineData: { data: cleanUpBackState.image.split(',')[1], mimeType: 'image/png' } };
+                        } else if (selectedBackFile) {
+                          backSourcePart = await fileToGenerativePart(selectedBackFile);
+                        } else {
+                          backSourcePart = await getCleanUpSourcePart();
+                        }
+                        generateModelBackShot(backSourcePart);
+                      }}
                     />
                   </motion.div>
                   <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
