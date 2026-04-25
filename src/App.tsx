@@ -33,6 +33,9 @@ export default function App() {
   const [selectedBackgroundFile, setSelectedBackgroundFile] = useState<File | null>(null);
   const [selectedBackgroundPreview, setSelectedBackgroundPreview] = useState<string | null>(null);
   
+  const [scaleReferenceFile, setScaleReferenceFile] = useState<File | null>(null);
+  const [scaleReferencePreview, setScaleReferencePreview] = useState<string | null>(null);
+  
   const [cleanUpFrontState, setCleanUpFrontState] = useState<GenerationState>({ loading: false, image: null });
   const [cleanUpBackState, setCleanUpBackState] = useState<GenerationState>({ loading: false, image: null });
   const [modelFrontState, setModelFrontState] = useState<GenerationState>({ loading: false, image: null });
@@ -53,6 +56,39 @@ export default function App() {
   const [modelStyle, setModelStyle] = useState<'Casual' | 'Classic' | 'Streetwear' | 'Business casual' | 'Chic' | 'Preppy' | 'Athleisure'>('Classic');
   const [modelPose, setModelPose] = useState<'natural' | 'walking' | 'hands-in-pockets' | 'slight-turn' | 'dynamic'>('natural');
   const [targetColor, setTargetColor] = useState<string>('');
+  const [clothingCategory, setClothingCategory] = useState<'auto' | 'top' | 'bottom' | 'outerwear' | 'dress' | 'accessory'>('auto');
+
+  const getFramingInstruction = (isCloseUp: boolean, viewBack?: boolean) => {
+    let focusInstruction = '';
+    
+    if (isCloseUp) {
+      if (clothingCategory === 'accessory') {
+        focusInstruction = 'CRITICAL REQUIREMENT: The item is an ACCESSORY (hat, bag, shoes, etc.). You MUST tightly frame the shot to clearly feature the accessory correctly worn or held by the model.';
+      } else if (clothingCategory === 'bottom') {
+        focusInstruction = 'CRITICAL REQUIREMENT: The clothing item is a BOTTOM (pants, skirt, shorts, etc). You MUST frame the shot from the waist down to the shoes. NEVER crop the legs. The lower body and feet must be completely visible.';
+      } else if (clothingCategory === 'top') {
+        focusInstruction = 'CRITICAL REQUIREMENT: The clothing item is a TOP. Focus the crop heavily on the torso and upper body.';
+      } else if (clothingCategory === 'dress') {
+        focusInstruction = 'CRITICAL REQUIREMENT: The clothing item is a DRESS or FULL-BODY piece. Ensure the framing shows the entire length of the garment.';
+      } else if (clothingCategory === 'outerwear') {
+        focusInstruction = 'CRITICAL REQUIREMENT: The clothing item is OUTERWEAR. Focus the crop on the upper body and layering.';
+      } else {
+        focusInstruction = 'CRITICAL REQUIREMENT: Visually analyze the uploaded item. If it is an accessory, frame it correctly. If it is a BOTTOM, frame from waist down. If it is a top, focus the crop on the torso.';
+      }
+
+      return `CLOSE-UP SHOT focusing heavily on the item's details and fit. ${focusInstruction} The crop should be tight on the target item while obeying the framing requirement.`;
+    } else {
+      if (clothingCategory === 'accessory') {
+        focusInstruction = 'Ensure the accessory is clearly visible and correctly proportioned to the full body.';
+      } else if (clothingCategory === 'bottom') {
+        focusInstruction = 'Ensure the styling highlights the lower body.';
+      } else if (clothingCategory === 'top') {
+        focusInstruction = 'Ensure the outfit is perfectly coordinated with matching bottoms.';
+      }
+
+      return `FULL BODY SHOT cropped from the chin down. CRITICAL REQUIREMENT: The torso, legs, and shoes MUST all be completely visible in the frame. DO NOT crop the image to only show the lower body. The full silhouette from the neck down to the feet must be clearly shown. The face must NOT be visible. ${focusInstruction}`;
+    }
+  };
 
   useEffect(() => {
     // Check for session authorization
@@ -158,6 +194,21 @@ export default function App() {
     setModelFullBodyState({ loading: false, image: null });
   };
 
+  const handleScaleReferenceSelect = (file: File) => {
+    setScaleReferenceFile(file);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setScaleReferencePreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+    
+    // Reset model states
+    setModelFrontState({ loading: false, image: null });
+    setModelSideState({ loading: false, image: null });
+    setModelBackState({ loading: false, image: null });
+    setModelFullBodyState({ loading: false, image: null });
+  };
+
   const handleClear = () => {
     setSelectedFile(null);
     setSelectedImagePreview(null);
@@ -165,6 +216,8 @@ export default function App() {
     setSelectedBackPreview(null);
     setSelectedBackgroundFile(null);
     setSelectedBackgroundPreview(null);
+    setScaleReferenceFile(null);
+    setScaleReferencePreview(null);
     setCleanUpFrontState({ loading: false, image: null });
     setCleanUpBackState({ loading: false, image: null });
     setModelFrontState({ loading: false, image: null });
@@ -186,6 +239,11 @@ export default function App() {
     setSelectedBackgroundFile(null);
     setSelectedBackgroundPreview(null);
     setModelFullBodyState({ loading: false, image: null });
+  };
+
+  const handleScaleReferenceClear = () => {
+    setScaleReferenceFile(null);
+    setScaleReferencePreview(null);
   };
 
   const fileToGenerativePart = async (file: File) => {
@@ -418,13 +476,25 @@ export default function App() {
       const poseInstruction = getPosePrompt();
 
       let colorInstruction = targetColor ? ` CRITICAL: Change the color of the clothing to exactly match this hex color code: ${targetColor}. DO NOT keep the original color. Ensure the fabric texture and shading remain realistic while adopting this new color.` : ` (DO NOT change the original color of the clothing or styling to match the background, keep the clothing's original color and use diverse colors for styling).`;
+      
+      const framing = getFramingInstruction(true);
 
-      let prompt = `A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing this exact clothing item.${bodyTypeInstruction} The clothing MUST be worn by a person, NOT displayed flat. Front view, cropped from the chin down (face must NOT be visible). EXTREME CLOSE-UP SHOT focusing heavily on the clothing item's details and fit on the torso/upper body. The crop should be very tight on the garment. Perfectly tailored, high-fashion fit, premium silhouette, elegant drape. Trendy Seoul street style or modern minimalist cafe look.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction}${poseInstruction} Cinematic lighting.`;
+      let preamble = "Image 1 is the item. ";
+      let scaleInstruction = "";
+
+      if (scaleReferenceFile) {
+        const scalePart = await fileToGenerativePart(scaleReferenceFile);
+        parts.push(scalePart);
+        preamble += `Image ${parts.length} is a wearing shot for scale reference ONLY. `;
+        scaleInstruction = ` CRITICAL: Use Image ${parts.length} ONLY to estimate the physical size and correct scale of the item relative to the human model. Do NOT copy the model, pose, styling, or background from Image ${parts.length}.`;
+      }
+
+      let prompt = `${preamble}A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact item from Image 1.${bodyTypeInstruction} The item MUST be worn by a person, NOT displayed flat. Front view (face must NOT be visible). ${framing} Perfectly tailored, high-fashion fit, premium silhouette, elegant drape. Trendy Seoul street style or modern minimalist cafe look.${fitInstruction}${styleInstruction} Strictly avoid outdated styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction}${poseInstruction} Cinematic lighting.${scaleInstruction}`;
       
       if (selectedBackgroundFile) {
         const bgPart = await fileToGenerativePart(selectedBackgroundFile);
         parts.push(bgPart);
-        prompt = `Image 1 is the clothing item. Image 2 is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1.${bodyTypeInstruction} The model MUST be placed naturally into the environment shown in Image 2. Front view, cropped from the chin down (face must NOT be visible). EXTREME CLOSE-UP SHOT focusing heavily on the clothing item's details and fit on the torso/upper body. The crop should be very tight on the garment. CRITICAL: Because this is a close-up shot, the background from Image 2 MUST be appropriately zoomed-in and cropped to match the scale and perspective of the subject. DO NOT squeeze the entire background image into the frame; use only a natural, out-of-focus portion of it (shallow depth of field/bokeh) to prevent it from looking like a cheap composite. Perfectly tailored, high-fashion fit, premium silhouette, elegant drape. Trendy Seoul street style or modern minimalist cafe look.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling.${colorInstruction}${poseInstruction} Cinematic lighting perfectly matching the background environment with realistic shadows and lighting direction. Ensure the clothing fits naturally and the overall image looks like a single, cohesive, photorealistic photograph.`;
+        prompt = `${preamble}Image ${parts.length} is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact item from Image 1.${bodyTypeInstruction} The model MUST be placed naturally into the environment shown in Image ${parts.length}. Front view (face must NOT be visible). ${framing} CRITICAL: Because this is a close-up shot, the background from Image ${parts.length} MUST be appropriately zoomed-in and cropped to match the scale and perspective of the subject. DO NOT squeeze the entire background image into the frame; use only a natural, out-of-focus portion of it. Perfectly tailored, high-fashion fit. Trendy Seoul street style.${fitInstruction}${styleInstruction} Strictly avoid outdated styling.${colorInstruction}${poseInstruction} Cinematic lighting perfectly matching the background environment. Ensure the item fits naturally and it looks like a single photorealistic photograph.${scaleInstruction}`;
       }
 
       parts.push({ text: prompt });
@@ -479,12 +549,24 @@ export default function App() {
 
       let colorInstruction = targetColor ? ` CRITICAL: Change the color of the clothing to exactly match this hex color code: ${targetColor}. DO NOT keep the original color. Ensure the fabric texture and shading remain realistic while adopting this new color.` : ` (DO NOT change the original color of the clothing or styling to match the background, keep the clothing's original color and use diverse colors for styling).`;
 
-      let prompt = `A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing this exact clothing item.${bodyTypeInstruction} The clothing MUST be worn by a person, NOT displayed flat. Side profile view, cropped from the chin down (face must NOT be visible). EXTREME CLOSE-UP SHOT focusing heavily on the clothing item's details and fit on the torso/upper body. The crop should be very tight on the garment. Perfectly tailored, high-fashion fit, premium silhouette, elegant drape. Trendy Seoul street style or modern minimalist cafe look.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction}${poseInstruction} Cinematic lighting.`;
+      const framing = getFramingInstruction(true);
+
+      let preamble = "Image 1 is the item. ";
+      let scaleInstruction = "";
+
+      if (scaleReferenceFile) {
+        const scalePart = await fileToGenerativePart(scaleReferenceFile);
+        parts.push(scalePart);
+        preamble += `Image ${parts.length} is a wearing shot for scale reference ONLY. `;
+        scaleInstruction = ` CRITICAL: Use Image ${parts.length} ONLY to estimate the physical size and correct scale of the item relative to the human model. Do NOT copy the model, pose, styling, or background from Image ${parts.length}.`;
+      }
+
+      let prompt = `${preamble}A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact item from Image 1.${bodyTypeInstruction} The item MUST be worn by a person, NOT displayed flat. Side profile view (face must NOT be visible). ${framing} Perfectly tailored, high-fashion fit, premium silhouette, elegant drape. Trendy Seoul street style or modern minimalist cafe look.${fitInstruction}${styleInstruction} Strictly avoid outdated styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction}${poseInstruction} Cinematic lighting.${scaleInstruction}`;
       
       if (selectedBackgroundFile) {
         const bgPart = await fileToGenerativePart(selectedBackgroundFile);
         parts.push(bgPart);
-        prompt = `Image 1 is the clothing item. Image 2 is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1.${bodyTypeInstruction} The model MUST be placed naturally into the environment shown in Image 2. Side profile view, cropped from the chin down (face must NOT be visible). EXTREME CLOSE-UP SHOT focusing heavily on the clothing item's details and fit on the torso/upper body. The crop should be very tight on the garment. CRITICAL: Because this is a close-up shot, the background from Image 2 MUST be appropriately zoomed-in and cropped to match the scale and perspective of the subject. DO NOT squeeze the entire background image into the frame; use only a natural, out-of-focus portion of it (shallow depth of field/bokeh) to prevent it from looking like a cheap composite. Perfectly tailored, high-fashion fit, premium silhouette, elegant drape. Trendy Seoul street style or modern minimalist cafe look.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling.${colorInstruction}${poseInstruction} Cinematic lighting perfectly matching the background environment with realistic shadows and lighting direction. Ensure the clothing fits naturally and the overall image looks like a single, cohesive, photorealistic photograph.`;
+        prompt = `${preamble}Image ${parts.length} is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact item from Image 1.${bodyTypeInstruction} The model MUST be placed naturally into the environment shown in Image ${parts.length}. Side profile view (face must NOT be visible). ${framing} CRITICAL: Because this is a close-up shot, the background from Image ${parts.length} MUST be appropriately zoomed-in and cropped to match the scale and perspective of the subject. DO NOT squeeze the entire background image into the frame; use only a natural, out-of-focus portion of it. Perfectly tailored, high-fashion fit. Trendy Seoul street style.${fitInstruction}${styleInstruction} Strictly avoid outdated styling.${colorInstruction}${poseInstruction} Cinematic lighting perfectly matching the background environment. Ensure the item fits naturally and it looks like a single photorealistic photograph.${scaleInstruction}`;
       }
 
       parts.push({ text: prompt });
@@ -539,12 +621,24 @@ export default function App() {
 
       let colorInstruction = targetColor ? ` CRITICAL: Change the color of the clothing to exactly match this hex color code: ${targetColor}. DO NOT keep the original color. Ensure the fabric texture and shading remain realistic while adopting this new color.` : ` (DO NOT change the original color of the clothing or styling to match the background, keep the clothing's original color and use diverse colors for styling).`;
 
-      let prompt = `A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing this exact clothing item.${bodyTypeInstruction} The clothing MUST be worn by a person, NOT displayed flat. Back profile view, cropped from the chin down (face must NOT be visible). EXTREME CLOSE-UP SHOT focusing heavily on the clothing item's details and fit on the torso/upper body from the back. The crop should be very tight on the garment. Perfectly tailored, high-fashion fit, premium silhouette, elegant drape. Trendy Seoul street style or modern minimalist cafe look.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction}${poseInstruction} Cinematic lighting.`;
+      const framing = getFramingInstruction(true);
+
+      let preamble = "Image 1 is the item. ";
+      let scaleInstruction = "";
+
+      if (scaleReferenceFile) {
+        const scalePart = await fileToGenerativePart(scaleReferenceFile);
+        parts.push(scalePart);
+        preamble += `Image ${parts.length} is a wearing shot for scale reference ONLY. `;
+        scaleInstruction = ` CRITICAL: Use Image ${parts.length} ONLY to estimate the physical size and correct scale of the item relative to the human model. Do NOT copy the model, pose, styling, or background from Image ${parts.length}.`;
+      }
+
+      let prompt = `${preamble}A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact item from Image 1.${bodyTypeInstruction} The item MUST be worn by a person, NOT displayed flat. Back profile view (face must NOT be visible). ${framing} Perfectly tailored, high-fashion fit, premium silhouette, elegant drape. Trendy Seoul street style or modern minimalist cafe look.${fitInstruction}${styleInstruction} Strictly avoid outdated styling. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction}${poseInstruction} Cinematic lighting.${scaleInstruction}`;
       
       if (selectedBackgroundFile) {
         const bgPart = await fileToGenerativePart(selectedBackgroundFile);
         parts.push(bgPart);
-        prompt = `Image 1 is the clothing item. Image 2 is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1.${bodyTypeInstruction} The model MUST be placed naturally into the environment shown in Image 2. Back profile view, cropped from the chin down (face must NOT be visible). EXTREME CLOSE-UP SHOT focusing heavily on the clothing item's details and fit on the torso/upper body from the back. The crop should be very tight on the garment. CRITICAL: Because this is a close-up shot, the background from Image 2 MUST be appropriately zoomed-in and cropped to match the scale and perspective of the subject. DO NOT squeeze the entire background image into the frame; use only a natural, out-of-focus portion of it (shallow depth of field/bokeh) to prevent it from looking like a cheap composite. Perfectly tailored, high-fashion fit, premium silhouette, elegant drape. Trendy Seoul street style or modern minimalist cafe look.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling.${colorInstruction}${poseInstruction} Cinematic lighting perfectly matching the background environment with realistic shadows and lighting direction. Ensure the clothing fits naturally and the overall image looks like a single, cohesive, photorealistic photograph.`;
+        prompt = `${preamble}Image ${parts.length} is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact item from Image 1.${bodyTypeInstruction} The model MUST be placed naturally into the environment shown in Image ${parts.length}. Back profile view (face must NOT be visible). ${framing} CRITICAL: Because this is a close-up shot, the background from Image ${parts.length} MUST be appropriately zoomed-in and cropped to match the scale and perspective of the subject. DO NOT squeeze the entire background image into the frame; use only a natural, out-of-focus portion of it. Perfectly tailored, high-fashion fit. Trendy Seoul street style.${fitInstruction}${styleInstruction} Strictly avoid outdated styling.${colorInstruction}${poseInstruction} Cinematic lighting perfectly matching the background environment. Ensure the item fits naturally and it looks like a single photorealistic photograph.${scaleInstruction}`;
       }
 
       parts.push({ text: prompt });
@@ -613,21 +707,32 @@ export default function App() {
 
       let colorInstruction = targetColor ? ` CRITICAL: Change the color of the clothing to exactly match this hex color code: ${targetColor}. DO NOT keep the original color. Ensure the fabric texture and shading remain realistic while adopting this new color.` : ` (DO NOT change the original color of the clothing or styling to match the background, keep the clothing's original color and use diverse colors for styling).`;
 
-      let prompt = `A photorealistic image of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing this exact clothing item.${bodyTypeInstruction} The clothing MUST be worn by a person, NOT displayed flat. Full body shot cropped from the chin down (face must NOT be visible). The model is wearing a highly trendy, youthful Seoul street style or modern minimalist cafe look coordination (e.g., wide-fit trousers, trendy sneakers or boots). Perfectly tailored, high-fashion fit, premium silhouette, elegant drape.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. DO NOT add any unnecessary, weird, or excessive accessories (like strange hats, heavy jewelry, weird bags, or random props). Keep the styling clean, minimal, and focused ONLY on the main clothing, bottoms, and shoes. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction}${poseInstruction} Cinematic lighting.`;
+      const framing = getFramingInstruction(false);
 
+      let preamble = "Image 1 is the main item. ";
+      
       if (coordPart) {
-        prompt = `Image 1 is the main clothing item. Image 2 is the recommended coordination outfit. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1, styled EXACTLY with the matching items (bottoms, shoes) shown in Image 2.${bodyTypeInstruction} The clothing MUST be worn by a person, NOT displayed flat. Full body shot cropped from the chin down (face must NOT be visible). Perfectly tailored, high-fashion fit, premium silhouette, elegant drape.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. DO NOT add any unnecessary, weird, or excessive accessories (like strange hats, heavy jewelry, weird bags, or random props). Keep the styling clean, minimal, and focused ONLY on the main clothing, bottoms, and shoes. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction}${poseInstruction} Cinematic lighting.`;
+        preamble += `Image 2 is the recommended coordination outfit. `;
       }
+
+      let scaleInstruction = "";
+      if (scaleReferenceFile) {
+        const scalePart = await fileToGenerativePart(scaleReferenceFile);
+        parts.push(scalePart);
+        preamble += `Image ${parts.length} is a wearing shot for scale reference ONLY. `;
+        scaleInstruction = ` CRITICAL: Use Image ${parts.length} ONLY to estimate the physical size and correct scale of the item relative to the human model. Do NOT copy the model, pose, styling, or background from Image ${parts.length}.`;
+      }
+
+      let coordInstruction = coordPart ? `styled EXACTLY with the matching items (bottoms, shoes) shown in Image 2` : `wearing a highly trendy, youthful Seoul street style or modern minimalist cafe look coordination`;
+
+      let prompt = `${preamble}Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact item from Image 1, ${coordInstruction}.${bodyTypeInstruction} The item MUST be worn by a person, NOT displayed flat. ${framing} Perfectly tailored, high-fashion fit, premium silhouette.${fitInstruction}${styleInstruction} Strictly avoid outdated styling. If the item is not an accessory itself, DO NOT add unnecessary accessories. High fashion Korean e-commerce style photography. Luxurious cream-colored background.${colorInstruction}${poseInstruction} Cinematic lighting.${scaleInstruction}`;
 
       if (selectedBackgroundFile) {
         const bgPart = await fileToGenerativePart(selectedBackgroundFile);
         parts.push(bgPart);
+        preamble += `Image ${parts.length} is the target background environment. `;
         
-        if (coordPart) {
-          prompt = `Image 1 is the main clothing item. Image 2 is the recommended coordination outfit. Image 3 is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1, styled EXACTLY with the matching items (bottoms, shoes) shown in Image 2.${bodyTypeInstruction} The model MUST be placed naturally into the exact environment shown in Image 3. Full body shot cropped from the chin down (face must NOT be visible). Perfectly tailored, high-fashion fit, premium silhouette, elegant drape.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. DO NOT add any unnecessary, weird, or excessive accessories (like strange hats, heavy jewelry, weird bags, or random props). Keep the styling clean, minimal, and focused ONLY on the main clothing, bottoms, and shoes.${colorInstruction}${poseInstruction} Cinematic lighting perfectly matching the background environment. Ensure the subject is perfectly integrated into the environment with realistic shadows, matching lighting direction, and natural depth of field. It MUST NOT look like a cheap composite or pasted on. Ensure the clothing fits naturally and the overall image looks like a single, cohesive, photorealistic photograph.`;
-        } else {
-          prompt = `Image 1 is the clothing item. Image 2 is the target background environment. Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact clothing item from Image 1.${bodyTypeInstruction} The model MUST be placed naturally into the exact environment shown in Image 2. Full body shot cropped from the chin down (face must NOT be visible). The model is wearing a highly trendy, youthful Seoul street style or modern minimalist cafe look coordination. Perfectly tailored, high-fashion fit, premium silhouette, elegant drape.${fitInstruction}${styleInstruction} Strictly avoid outdated or middle-aged styling. DO NOT add any unnecessary, weird, or excessive accessories (like strange hats, heavy jewelry, weird bags, or random props). Keep the styling clean, minimal, and focused ONLY on the main clothing, bottoms, and shoes.${colorInstruction}${poseInstruction} Cinematic lighting perfectly matching the background environment. Ensure the subject is perfectly integrated into the environment with realistic shadows, matching lighting direction, and natural depth of field. It MUST NOT look like a cheap composite or pasted on. Ensure the clothing fits naturally and the overall image looks like a single, cohesive, photorealistic photograph.`;
-        }
+        prompt = `${preamble}Generate a highly realistic, professional fashion editorial photo of a stylish 20-something Korean ${genderText} HUMAN fashion model physically wearing the exact item from Image 1, ${coordInstruction}.${bodyTypeInstruction} The model MUST be placed naturally into the exact environment shown in Image ${parts.length}. ${framing} Perfectly tailored, high-fashion fit.${fitInstruction}${styleInstruction} Strictly avoid outdated styling. If the item is not an accessory itself, DO NOT add unnecessary accessories.${colorInstruction}${poseInstruction} Cinematic lighting perfectly matching the background environment. Ensure the subject is perfectly integrated into the environment with realistic shadows and natural depth of field. It MUST NOT look like a cheap composite. Ensure the item fits naturally.${scaleInstruction}`;
       }
       
       parts.push({ text: prompt });
@@ -916,7 +1021,7 @@ export default function App() {
           {/* Upload Section */}
           <section className="mb-20">
             <div className="flex flex-col items-center">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-6xl">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 w-full max-w-7xl">
                 <ImageUpload 
                   title="Front Item"
                   subtitle="Required: Upload front view"
@@ -937,6 +1042,13 @@ export default function App() {
                   onImageSelect={handleBackgroundSelect} 
                   selectedImage={selectedBackgroundPreview}
                   onClear={handleBackgroundClear}
+                />
+                <ImageUpload 
+                  title="Scale Reference"
+                  subtitle="Optional: Wearing shot for scale"
+                  onImageSelect={handleScaleReferenceSelect} 
+                  selectedImage={scaleReferencePreview}
+                  onClear={handleScaleReferenceClear}
                 />
               </div>
 
@@ -1000,6 +1112,25 @@ export default function App() {
                         {style}
                       </option>
                     ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-4 p-5 bg-[#1a1a1a] border border-white/10 rounded-2xl w-full md:w-auto shadow-lg">
+                  <div className="flex flex-col mr-4">
+                    <span className="text-base font-medium text-white">Item Category</span>
+                    <span className="text-xs text-white/50">Used to frame the shots</span>
+                  </div>
+                  <select
+                    value={clothingCategory}
+                    onChange={(e) => setClothingCategory(e.target.value as any)}
+                    className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-white/20"
+                  >
+                    <option value="auto" className="bg-[#1a1a1a] text-white">Auto</option>
+                    <option value="top" className="bg-[#1a1a1a] text-white">Top</option>
+                    <option value="bottom" className="bg-[#1a1a1a] text-white">Bottom</option>
+                    <option value="outerwear" className="bg-[#1a1a1a] text-white">Outerwear</option>
+                    <option value="dress" className="bg-[#1a1a1a] text-white">Dress / Full Body</option>
+                    <option value="accessory" className="bg-[#1a1a1a] text-white">Accessory (Hat, Bag, Shoes)</option>
                   </select>
                 </div>
 
