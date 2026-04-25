@@ -9,7 +9,7 @@ import { ImageUpload } from './components/ImageUpload';
 import { GeneratedImage } from './components/GeneratedImage';
 import { AccessGate } from './components/AccessGate';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Camera, ZoomIn, Shirt, Lock, Settings, Key, X, Save, RefreshCw } from 'lucide-react';
+import { Sparkles, Camera, ZoomIn, Shirt, Lock, Settings, Key, X, Save, RefreshCw, ChevronDown, ChevronUp, BookOpen, Info } from 'lucide-react';
 
 type GenerationState = {
   loading: boolean;
@@ -57,6 +57,7 @@ export default function App() {
   const [modelPose, setModelPose] = useState<'natural' | 'walking' | 'hands-in-pockets' | 'slight-turn' | 'dynamic'>('natural');
   const [targetColor, setTargetColor] = useState<string>('');
   const [clothingCategory, setClothingCategory] = useState<'auto' | 'top' | 'bottom' | 'outerwear' | 'dress' | 'accessory'>('auto');
+  const [showManual, setShowManual] = useState(false);
 
   const getFramingInstruction = (isCloseUp: boolean, viewBack?: boolean) => {
     let focusInstruction = '';
@@ -1018,6 +1019,101 @@ export default function App() {
         </div>
       ) : (
         <main className="max-w-7xl mx-auto px-6 md:px-12 mt-12">
+          
+          {/* User Manual Section */}
+          <section className="mb-16">
+            <div className="bg-[#111111] border border-white/10 rounded-2xl overflow-hidden transition-all duration-300">
+              <button 
+                onClick={() => setShowManual(!showManual)}
+                className="w-full flex items-center justify-between p-6 hover:bg-white/5 transition-colors focus:outline-none"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="p-2 bg-white/10 rounded-lg">
+                    <BookOpen className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <h2 className="text-lg font-medium text-white">How to Use (사용 설명서)</h2>
+                    <p className="text-sm text-white/50 mt-1">Click to view detailed instructions for creating AI fashion shots</p>
+                  </div>
+                </div>
+                {showManual ? <ChevronUp className="w-5 h-5 text-white/50" /> : <ChevronDown className="w-5 h-5 text-white/50" />}
+              </button>
+              
+              <AnimatePresence>
+                {showManual && (
+                  <motion.div 
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="border-t border-white/5"
+                  >
+                    <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-8 text-sm text-white/70">
+                      
+                      <div className="space-y-6">
+                        <div>
+                          <h3 className="flex items-center gap-2 text-white font-medium mb-3">
+                            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-white/10 text-xs">1</span>
+                            Upload Images (이미지 업로드)
+                          </h3>
+                          <ul className="space-y-3 ml-2 list-disc pl-5">
+                            <li><strong>Front Item (필수):</strong> The main front-view photo of your clothing or accessory. (의류나 악세사리의 정면 사진을 올려주세요)</li>
+                            <li><strong>Back Item (선택):</strong> The back-view if you want back-facing model shots. (후면 모델샷이 필요할 경우 뒷면 사진을 올려주세요)</li>
+                            <li><strong>Background (선택):</strong> A specific background scene. The AI will place the model here naturally. (원하는 배경이 있다면 올려주세요)</li>
+                            <li><strong>Scale Reference (선택):</strong> Use this ONLY for accessories (bags, hats, shoes) to help AI understand the physical size. Please upload a wearing shot. (악세사리의 크기나 비율을 참고하기 위한 착용샷입니다. 모델 포즈나 배경은 무시되고 오직 '사이즈/비율' 파악에만 사용됩니다)</li>
+                          </ul>
+                        </div>
+                        
+                        <div>
+                          <h3 className="flex items-center gap-2 text-white font-medium mb-3">
+                            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-white/10 text-xs">2</span>
+                            Set Options (옵션 설정)
+                          </h3>
+                          <ul className="space-y-3 ml-2 list-disc pl-5">
+                            <li><strong>Model Gender / Fit / Style (모델 설정):</strong> Choose the target audience, outfit fit, and fashion style (e.g., Casual, Streetwear). (모델의 성별, 핏, 스타일을 선택하세요)</li>
+                            <li><strong>Clothing Category (카테고리):</strong> Tell the AI what the item is. Choose 'Accessory' for bags/hats/shoes to ensure they are held or worn correctly! (아이템 종류를 선택하세요. 악세사리의 경우 반드시 'Accessory'를 선택해야 디테일이 보장됩니다)</li>
+                          </ul>
+                        </div>
+                      </div>
+
+                      <div className="space-y-6">
+                        <div>
+                          <h3 className="flex items-center gap-2 text-white font-medium mb-3">
+                            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-white/10 text-xs">3</span>
+                            Generating Images (이미지 생성)
+                          </h3>
+                          <div className="bg-white/5 rounded-xl p-4 space-y-4">
+                            <div>
+                              <strong className="text-white block mb-1">Clean Up Image (누끼 및 주름제거)</strong>
+                              <p>Removes background and flattens out wrinkles to make the item look brand new. (배경을 제거하고 상품을 깔끔하게 정리해줍니다)</p>
+                            </div>
+                            <div>
+                              <strong className="text-white block mb-1">Model Shots (모델 착용샷)</strong>
+                              <p>Generates high-fashion model shots wearing the item. You can request Front, Side, Back, or Full Body. (상품을 착용한 고화질 패션 모델샷을 생성합니다. 정면, 측면, 후면, 전신 등 다양하게 생성해보세요!)</p>
+                            </div>
+                            <div>
+                              <strong className="text-white block mb-1">Detailed Shots (디테일 컷)</strong>
+                              <p>Check the "Enable Macro Detail Shots" to generate ultra close-ups of fabric textures, zippers, or logos. ("매크로 디테일 컷 활성화"를 체크하면 원단, 스티치, 디자인 포인트의 초근접샷을 생성할 수 있습니다.)</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 flex gap-3 text-blue-200">
+                          <Info className="w-5 h-5 shrink-0 mt-0.5 text-blue-400" />
+                          <p className="text-xs leading-relaxed">
+                            <strong>PRO TIP:</strong> If you upload a Custom Background and a Scale Reference for an accessory, the AI will naturally blend the accessory onto a model at the correct size into that specific environment!
+                            <br/><br/>
+                            <strong>꿀팁:</strong> 악세사리 상품에 자체 배경과 사이즈 측정용 착용샷을 지정하면, AI가 정확한 비율로 해당 배경에 자연스럽게 모델 착용샷을 합성해줍니다!
+                          </p>
+                        </div>
+                      </div>
+
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </section>
+
           {/* Upload Section */}
           <section className="mb-20">
             <div className="flex flex-col items-center">
